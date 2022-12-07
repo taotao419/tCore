@@ -24,8 +24,8 @@ else ifeq ($(BOARD), k210)
 endif
 
 # Run K210
-K210-SERIALPORT	= ~/tCore/osbin/rust-os.bin
-K210-BURNER = ../tools/kflash.py
+K210-SERIALPORT	= /dev/ttyUSB0
+K210-BURNER		= ../tools/kflash.py
 
 # Binutils
 OBJDUMP := rust-objdump --arch-name=riscv64
@@ -89,7 +89,7 @@ else
 	@mv $(BOOTLOADER).copy $(KERNEL_BIN)
 	@sudo chmod 777 $(K210-SERIALPORT)
 	python3 $(K210-BURNER) -p $(K210-SERIALPORT) -b 1500000 $(KERNEL_BIN)
-	#python3 -m serial.tools.miniterm --eol LF --dtr 0 --rts 0 --filter direct $(K210-SERIALPORT) 115200
+	python3 -m serial.tools.miniterm  --eol LF --dtr 0 --rts 0 --filter direct $(K210-SERIALPORT) 115200
 endif
 
 debug: build
