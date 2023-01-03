@@ -57,7 +57,7 @@ impl MemorySet {
         permission: MapPermission,
     ) {
         self.push(
-            MapArea::new(start_va, end_va, MapType::Framed, permission),
+            MapArea::new(start_va, end_va, MapType::Framed, permission,SectionType::Kernel_Stack),
             None,
         );
     }
@@ -69,77 +69,75 @@ impl MemorySet {
         self.areas.push(map_area);
     }
     /// Mention that trampoline is not collected by areas.
-    fn map_trampoline(&mut self) {
+    fn map_trampoline(&mut self,type_name :&str) {
         self.page_table.map(
             VirtAddr::from(TRAMPOLINE).into(),
             PhysAddr::from(strampoline as usize).into(),
             PTEFlags::R | PTEFlags::X,
         );
+        println!("[{}] mapping trampoline section Virtual Address [{:#x}] Physical Address [{:#x}]",type_name,TRAMPOLINE,strampoline as usize);
     }
     /// Without kernel stacks.
     pub fn new_kernel() -> Self {
         let mut memory_set = Self::new_bare();
         // map trampoline
-        memory_set.map_trampoline();
+        memory_set.map_trampoline("KERNEL");
         // map kernel sections
-        println!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
-        println!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
-        println!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);
-        println!(
-            ".bss [{:#x}, {:#x})",
-            sbss_with_stack as usize, ebss as usize
-        );
-        println!("mapping .text section");
+        println!("mapping .text section [{:#x}, {:#x})", stext as usize, etext as usize);
         memory_set.push(
             MapArea::new(
                 (stext as usize).into(),
                 (etext as usize).into(),
                 MapType::Identical,
                 MapPermission::R | MapPermission::X,
+                SectionType::Text,
             ),
             None,
         );
-        println!("mapping .rodata section");
+        println!("mapping .rodata section [{:#x}, {:#x})", srodata as usize, erodata as usize);
         memory_set.push(
             MapArea::new(
                 (srodata as usize).into(),
                 (erodata as usize).into(),
                 MapType::Identical,
                 MapPermission::R,
+                SectionType::Rodata,
             ),
             None,
         );
-        println!("mapping .data section");
+        println!("mapping .data section [{:#x}, {:#x})", sdata as usize, edata as usize);
         memory_set.push(
             MapArea::new(
                 (sdata as usize).into(),
                 (edata as usize).into(),
                 MapType::Identical,
                 MapPermission::R | MapPermission::W,
+                SectionType::Data,
             ),
             None,
         );
-        println!("mapping .bss section");
+        println!("mapping .bss section [{:#x}, {:#x})", sbss_with_stack as usize, ebss as usize);
         memory_set.push(
             MapArea::new(
                 (sbss_with_stack as usize).into(),
                 (ebss as usize).into(),
                 MapType::Identical,
                 MapPermission::R | MapPermission::W,
+                SectionType::BSS,
             ),
             None,
         );
-        println!("mapping physical memory");
+        println!("mapping heap section [{:#x}, {:#x})",ekernel as usize,MEMORY_END);
         memory_set.push(
             MapArea::new(
                 (ekernel as usize).into(),
                 MEMORY_END.into(),
                 MapType::Identical,
                 MapPermission::R | MapPermission::W,
+                SectionType::Heap,
             ),
             None,
         );
-        println!("mapping memory-mapped registers");
         for pair in MMIO {
             memory_set.push(
                 MapArea::new(
@@ -147,10 +145,13 @@ impl MemorySet {
                     ((*pair).0 + (*pair).1).into(),
                     MapType::Identical,
                     MapPermission::R | MapPermission::W,
+                    SectionType::Unknow,
                 ),
                 None,
             );
+            println!("mapping memory-mapped registers [{:#x},{:#x})",(*pair).0,((*pair).0+(*pair).1));
         }
+        println!("[KERNEL] finish init memory set {:#?}", memory_set);
         memory_set
     }
     /// Include sections in elf and trampoline and TrapContext and user stack,
@@ -158,7 +159,7 @@ impl MemorySet {
     pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize) {
         let mut memory_set = Self::new_bare();
         // map trampoline
-        memory_set.map_trampoline();
+        memory_set.map_trampoline("USER APP");
         // map program headers of elf, with U flag
         let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
         let elf_header = elf.header;
@@ -182,7 +183,7 @@ impl MemorySet {
                 if ph_flags.is_execute() {
                     map_perm |= MapPermission::X;
                 }
-                let map_area = MapArea::new(start_va, end_va, MapType::Framed, map_perm);
+                let map_area = MapArea::new(start_va, end_va, MapType::Framed, map_perm,SectionType::Unknow);
                 max_end_vpn = map_area.vpn_range.get_end();
                 memory_set.push(
                     map_area,
@@ -202,6 +203,7 @@ impl MemorySet {
                 user_stack_top.into(),
                 MapType::Framed,
                 MapPermission::R | MapPermission::W | MapPermission::U,
+                SectionType::Stack,
             ),
             None,
         );
@@ -212,6 +214,7 @@ impl MemorySet {
                 TRAMPOLINE.into(),
                 MapType::Framed,
                 MapPermission::R | MapPermission::W,
+                SectionType::TrapContext,
             ),
             None,
         );
@@ -240,6 +243,7 @@ pub struct MapArea {
     data_frames: BTreeMap<VirtPageNum, FrameTracker>,
     map_type: MapType,
     map_perm: MapPermission,
+    section_type : SectionType,
 }
 
 impl MapArea {
@@ -248,6 +252,7 @@ impl MapArea {
         end_va: VirtAddr,
         map_type: MapType,
         map_perm: MapPermission,
+        section_type:SectionType,
     ) -> Self {
         let start_vpn: VirtPageNum = start_va.floor();
         let end_vpn: VirtPageNum = end_va.ceil();
@@ -256,6 +261,7 @@ impl MapArea {
             data_frames: BTreeMap::new(),
             map_type,
             map_perm,
+            section_type,
         }
     }
     pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
@@ -320,6 +326,19 @@ impl MapArea {
 pub enum MapType {
     Identical,
     Framed,
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum SectionType{
+    Unknow,
+    Rodata,
+    Data,
+    Text,
+    BSS,
+    Stack,
+    Heap,
+    TrapContext,
+    Kernel_Stack
 }
 
 bitflags! {

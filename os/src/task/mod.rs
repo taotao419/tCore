@@ -15,7 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
-use crate::logger::{self,info,  info2 };
+use crate::logger::{self };
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -141,8 +141,8 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
 
-            info2("current app Id vs next app Id", current, next);
-            info("current task context", &inner.tasks[current].task_cx);
+            // info2("current app Id vs next app Id", current, next);
+            // info("current task context", &inner.tasks[current].task_cx);
             // warn("next task context", inner.tasks[next].task_cx);
 
             inner.tasks[next].task_status = TaskStatus::Running;

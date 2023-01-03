@@ -53,6 +53,7 @@ impl TaskControlBlock {
             kernel_stack_top,
             trap_handler as usize,
         );
+        println!("App id : [{}]  new task control block : [{:#?}]",app_id,task_control_block);
         task_control_block
     }
 }
