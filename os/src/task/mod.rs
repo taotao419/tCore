@@ -15,7 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
-use crate::logger::{self };
+use crate::logger::{self ,info,warn};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -105,7 +105,7 @@ impl TaskManager {
         inner.tasks[cur].task_status = TaskStatus::Exited;
         let running_span = get_time_ms() - inner.tasks[cur].start_timing;
         logger::info2(
-            "[kernal] Application index and running span : ",
+            "[kernel] Application exited, index and running span : ",
             cur,
             running_span,
         );
@@ -142,8 +142,8 @@ impl TaskManager {
             let current = inner.current_task;
 
             // info2("current app Id vs next app Id", current, next);
-            // info("current task context", &inner.tasks[current].task_cx);
-            // warn("next task context", inner.tasks[next].task_cx);
+            println!("current task app id [{}] context sp [{:#x}]",current, &inner.tasks[current].task_cx.sp);
+            println!("next task app id [{}] context sp [{:#x}]",next, &inner.tasks[next].task_cx.sp);
 
             inner.tasks[next].task_status = TaskStatus::Running;
             if inner.tasks[next].start_timing == 0 {

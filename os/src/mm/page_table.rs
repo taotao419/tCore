@@ -91,6 +91,7 @@ impl PageTable {
             if !pte.is_valid() {
                 let frame = frame_alloc().unwrap();
                 *pte = PageTableEntry::new(frame.ppn, PTEFlags::V);
+                println!("[KERNEL] Page Table Entry frames push new frame [{:#?}]",frame);
                 self.frames.push(frame);
             }
             ppn = pte.ppn();

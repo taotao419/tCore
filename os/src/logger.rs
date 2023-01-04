@@ -14,9 +14,9 @@ pub fn info2<T: core::fmt::Display>(msg: &str, t1: T, t2: T) {
 }
 
 #[allow(dead_code)]
-pub fn warn<T: core::fmt::Display>(msg: &str, t: T) {
+pub fn warn<T: Debug>(msg: &str, t: &T) {
     let timing = get_time_ms();
-    println!("\x1b[93m[{time} ms] [WARN] {} -- {}\x1b[0m", msg, t, time = timing);
+    println!("\x1b[93m[{time} ms] [WARN] {} -- {:#?}\x1b[0m", msg, t, time = timing);
 }
 
 #[allow(dead_code)]

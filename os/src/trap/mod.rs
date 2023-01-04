@@ -35,6 +35,8 @@ pub fn init() {
     set_kernel_trap_entry();
 }
 
+//CPU 会跳转到 stvec 所设置的 Trap 处理入口地址，并将当前特权级设置为 S 
+//然后从Trap 处理入口地址处开始执行。
 fn set_kernel_trap_entry() {
     unsafe {
         stvec::write(trap_from_kernel as usize, TrapMode::Direct);
@@ -59,6 +61,7 @@ pub fn enable_timer_interrupt() {
 pub fn trap_handler() -> ! {
     set_kernel_trap_entry();
     let cx = current_trap_cx();
+    // println!("[KERNEL] trap to ring0 satp [{:#x}]",cx.kernel_satp);
     let scause = scause::read();
     let stval = stval::read();
     match scause.cause() {
@@ -121,6 +124,7 @@ pub fn trap_return() -> ! {
 /// Unimplement: traps/interrupts/exceptions from kernel mode
 /// Todo: Chapter 9: I/O device
 pub fn trap_from_kernel() -> ! {
+    println!("a trap from kernel");
     panic!("a trap from kernel!");
 }
 

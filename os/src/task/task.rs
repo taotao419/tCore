@@ -30,12 +30,14 @@ impl TaskControlBlock {
             .ppn();
         let task_status = TaskStatus::Ready;
         // map a kernel-stack in kernel space
+        // **关键点** 在加载每个用户程序时,还会在核心kernel 创建核心栈
         let (kernel_stack_bottom, kernel_stack_top) = kernel_stack_position(app_id);
         KERNEL_SPACE.exclusive_access().insert_framed_area(
             kernel_stack_bottom.into(),
             kernel_stack_top.into(),
             MapPermission::R | MapPermission::W,
         );
+        println!("[KERNEL] mapping stack section for APP:{}  [{:#x}, {:#x})",app_id,kernel_stack_bottom,kernel_stack_top);
         let task_control_block = Self {
             task_status,
             task_cx: TaskContext::goto_trap_return(kernel_stack_top),

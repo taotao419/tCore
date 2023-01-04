@@ -151,7 +151,7 @@ impl MemorySet {
             );
             println!("mapping memory-mapped registers [{:#x},{:#x})",(*pair).0,((*pair).0+(*pair).1));
         }
-        println!("[KERNEL] finish init memory set {:#?}", memory_set);
+        println!("[KERNEL] init memory set {:#?}", memory_set);
         memory_set
     }
     /// Include sections in elf and trampoline and TrapContext and user stack,
