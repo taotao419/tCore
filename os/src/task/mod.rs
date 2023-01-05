@@ -141,9 +141,11 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
 
-            // info2("current app Id vs next app Id", current, next);
-            println!("current task app id [{}] context sp [{:#x}]",current, &inner.tasks[current].task_cx.sp);
-            println!("next task app id [{}] context sp [{:#x}]",next, &inner.tasks[next].task_cx.sp);
+            if(current != next){
+                // info2("current app Id vs next app Id", current, next);
+                println!("current task app id [{}] context sp [{:#x}]",current, &inner.tasks[current].task_cx.sp);
+                println!("next task app id [{}] context sp [{:#x}]",next, &inner.tasks[next].task_cx.sp);
+            }
 
             inner.tasks[next].task_status = TaskStatus::Running;
             if inner.tasks[next].start_timing == 0 {
