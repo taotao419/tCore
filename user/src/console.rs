@@ -1,8 +1,9 @@
-use super::write;
+use super::{read,write};
 use core::fmt::{self, Write};
 
 struct Stdout;
 
+const STDIN: usize = 0;
 const STDOUT: usize = 1;
 
 impl Write for Stdout {
@@ -28,4 +29,10 @@ macro_rules! println {
     ($fmt: literal $(, $($arg: tt)+)?) => {
         $crate::console::print(format_args!(concat!($fmt, "\n") $(, $($arg)+)?));
     }
+}
+
+pub fn getchar() -> u8 {
+    let mut c = [0u8; 1]; //初始化c数组 , 数组长度1 内容一个0u8
+    read(STDIN, &mut c);
+    return c[0];
 }
