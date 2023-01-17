@@ -23,10 +23,9 @@ use crate::timer::set_next_trigger;
 use core::arch::{asm, global_asm};
 use riscv::register::{
     mtvec::TrapMode,
-    scause::{self, Exception,Interrupt, Trap},
-    stval, stvec, sie
+    scause::{self, Exception, Interrupt, Trap},
+    sie, stval, stvec,
 };
-
 
 global_asm!(include_str!("trap.S"));
 
@@ -35,7 +34,7 @@ pub fn init() {
     set_kernel_trap_entry();
 }
 
-//CPU 会跳转到 stvec 所设置的 Trap 处理入口地址，并将当前特权级设置为 S 
+//CPU 会跳转到 stvec 所设置的 Trap 处理入口地址，并将当前特权级设置为 S
 //然后从Trap 处理入口地址处开始执行。
 fn set_kernel_trap_entry() {
     unsafe {
@@ -60,25 +59,29 @@ pub fn enable_timer_interrupt() {
 /// handle an interrupt, exception, or system call from user space
 pub fn trap_handler() -> ! {
     set_kernel_trap_entry();
-    let cx = current_trap_cx();
     // println!("[KERNEL] trap to ring0 satp [{:#x}]",cx.kernel_satp);
     let scause = scause::read();
     let stval = stval::read();
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
+            //jump to next instruction anyway
+            let mut cx = current_trap_cx();
             cx.sepc += 4;
-            cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
+            let result = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]);
+            //cx is changed during sys_exec, so we have to call it again
+            cx = current_trap_cx();
+            cx.x[10] = result as usize;
         }
         Trap::Exception(Exception::StoreFault)
         | Trap::Exception(Exception::StorePageFault)
         | Trap::Exception(Exception::LoadFault)
         | Trap::Exception(Exception::LoadPageFault) => {
             println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.", stval, cx.sepc);
-            exit_current_and_run_next();
+            exit_current_and_run_next(-2);
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             println!("[kernel] IllegalInstruction in application, kernel killed it.");
-            exit_current_and_run_next();
+            exit_current_and_run_next(-3);
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             set_next_trigger();

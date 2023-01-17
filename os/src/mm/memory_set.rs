@@ -57,10 +57,29 @@ impl MemorySet {
         permission: MapPermission,
     ) {
         self.push(
-            MapArea::new(start_va, end_va, MapType::Framed, permission,SectionType::Kernel_Stack),
+            MapArea::new(
+                start_va,
+                end_va,
+                MapType::Framed,
+                permission,
+                SectionType::Kernel_Stack,
+            ),
             None,
         );
     }
+    ///Remove `MapArea` that starts with `start_vpn`
+    pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
+        if let Some((idx, area)) = self
+            .areas
+            .iter_mut()
+            .enumerate()
+            .find(|(_, area)| area.vpn_range.get_start() == start_vpn)
+        {
+            area.unmap(&mut self.page_table);
+            self.areas.remove(idx);
+        }
+    }
+
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
         if let Some(data) = data {
@@ -69,13 +88,16 @@ impl MemorySet {
         self.areas.push(map_area);
     }
     /// Mention that trampoline is not collected by areas.
-    fn map_trampoline(&mut self,type_name :&str) {
+    fn map_trampoline(&mut self, type_name: &str) {
         self.page_table.map(
             VirtAddr::from(TRAMPOLINE).into(),
             PhysAddr::from(strampoline as usize).into(),
             PTEFlags::R | PTEFlags::X,
         );
-        println!("[{}] mapping trampoline section Virtual Address [{:#x}] Physical Address [{:#x}]",type_name,TRAMPOLINE,strampoline as usize);
+        println!(
+            "[{}] mapping trampoline section Virtual Address [{:#x}] Physical Address [{:#x}]",
+            type_name, TRAMPOLINE, strampoline as usize
+        );
     }
     /// Without kernel stacks.
     pub fn new_kernel() -> Self {
@@ -83,7 +105,10 @@ impl MemorySet {
         // map trampoline
         memory_set.map_trampoline("KERNEL");
         // map kernel sections
-        println!("mapping .text section [{:#x}, {:#x})", stext as usize, etext as usize);
+        println!(
+            "mapping .text section [{:#x}, {:#x})",
+            stext as usize, etext as usize
+        );
         memory_set.push(
             MapArea::new(
                 (stext as usize).into(),
@@ -94,7 +119,10 @@ impl MemorySet {
             ),
             None,
         );
-        println!("mapping .rodata section [{:#x}, {:#x})", srodata as usize, erodata as usize);
+        println!(
+            "mapping .rodata section [{:#x}, {:#x})",
+            srodata as usize, erodata as usize
+        );
         memory_set.push(
             MapArea::new(
                 (srodata as usize).into(),
@@ -105,7 +133,10 @@ impl MemorySet {
             ),
             None,
         );
-        println!("mapping .data section [{:#x}, {:#x})", sdata as usize, edata as usize);
+        println!(
+            "mapping .data section [{:#x}, {:#x})",
+            sdata as usize, edata as usize
+        );
         memory_set.push(
             MapArea::new(
                 (sdata as usize).into(),
@@ -116,7 +147,10 @@ impl MemorySet {
             ),
             None,
         );
-        println!("mapping .bss section [{:#x}, {:#x})", sbss_with_stack as usize, ebss as usize);
+        println!(
+            "mapping .bss section [{:#x}, {:#x})",
+            sbss_with_stack as usize, ebss as usize
+        );
         memory_set.push(
             MapArea::new(
                 (sbss_with_stack as usize).into(),
@@ -127,7 +161,10 @@ impl MemorySet {
             ),
             None,
         );
-        println!("mapping heap section [{:#x}, {:#x})",ekernel as usize,MEMORY_END);
+        println!(
+            "mapping heap section [{:#x}, {:#x})",
+            ekernel as usize, MEMORY_END
+        );
         memory_set.push(
             MapArea::new(
                 (ekernel as usize).into(),
@@ -149,7 +186,11 @@ impl MemorySet {
                 ),
                 None,
             );
-            println!("mapping memory-mapped registers [{:#x},{:#x})",(*pair).0,((*pair).0+(*pair).1));
+            println!(
+                "mapping memory-mapped registers [{:#x},{:#x})",
+                (*pair).0,
+                ((*pair).0 + (*pair).1)
+            );
         }
         println!("[KERNEL] init memory set {:#?}", memory_set);
         memory_set
@@ -183,7 +224,13 @@ impl MemorySet {
                 if ph_flags.is_execute() {
                     map_perm |= MapPermission::X;
                 }
-                let map_area = MapArea::new(start_va, end_va, MapType::Framed, map_perm,SectionType::Unknow);
+                let map_area = MapArea::new(
+                    start_va,
+                    end_va,
+                    MapType::Framed,
+                    map_perm,
+                    SectionType::Unknow,
+                );
                 max_end_vpn = map_area.vpn_range.get_end();
                 memory_set.push(
                     map_area,
@@ -224,6 +271,25 @@ impl MemorySet {
             elf.header.pt2.entry_point() as usize,
         )
     }
+    //Clone a same MemorySet
+    pub fn from_existed_user(user_space: &Self) -> Self {
+        let mut memory_set = Self::new_bare();
+        memory_set.map_trampoline("from_existed_user");
+        for area in user_space.areas.iter() {
+            let new_area = MapArea::from_another(area);
+            memory_set.push(new_area, None);
+            //copy data from another space
+            for vpn in area.vpn_range {
+                let scr_ppn = user_space.translate(vpn).unwrap().ppn();
+                let dst_ppn = memory_set.translate(vpn).unwrap().ppn();
+                dst_ppn
+                    .get_bytes_array()
+                    .copy_from_slice(src_ppn.get_bytes_array());
+            }
+        }
+        return memory_set;
+    }
+
     pub fn activate(&self) {
         let satp = self.page_table.token();
         unsafe {
@@ -234,6 +300,10 @@ impl MemorySet {
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.page_table.translate(vpn)
     }
+    //Remove all 'MapArea'
+    pub fn recycle_data_pages(&mut self){
+        self.areas.clear();
+    }
 }
 
 /// map area structure, controls a contiguous piece of virtual memory
@@ -243,7 +313,7 @@ pub struct MapArea {
     data_frames: BTreeMap<VirtPageNum, FrameTracker>,
     map_type: MapType,
     map_perm: MapPermission,
-    section_type : SectionType,
+    section_type: SectionType,
 }
 
 impl MapArea {
@@ -252,7 +322,7 @@ impl MapArea {
         end_va: VirtAddr,
         map_type: MapType,
         map_perm: MapPermission,
-        section_type:SectionType,
+        section_type: SectionType,
     ) -> Self {
         let start_vpn: VirtPageNum = start_va.floor();
         let end_vpn: VirtPageNum = end_va.ceil();
@@ -262,6 +332,15 @@ impl MapArea {
             map_type,
             map_perm,
             section_type,
+        }
+    }
+    pub fn from_another(another: &Self) -> Self {
+        Self {
+            vpn_range: VPNRange::new(another.vpn_range.get_start(), another.vpn_range.get_end()),
+            data_frames: BTreeMap::new(),
+            map_type: another.map_type,
+            map_perm: another.map_perm,
+            section_type: another.section_type,
         }
     }
     pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
@@ -329,7 +408,7 @@ pub enum MapType {
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum SectionType{
+pub enum SectionType {
     Unknow,
     Rodata,
     Data,
@@ -338,7 +417,7 @@ pub enum SectionType{
     Stack,
     Heap,
     TrapContext,
-    Kernel_Stack
+    Kernel_Stack,
 }
 
 bitflags! {
