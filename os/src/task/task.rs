@@ -1,12 +1,14 @@
-use alloc::sync::Arc;
 
 use super::pid::{KernelStack, PidHandle};
 use super::TaskContext;
-use crate::config::{kernel_stack_position, TRAP_CONTEXT};
+use crate::config::TRAP_CONTEXT;
 use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::task::pid::pid_alloc;
 use crate::trap::{trap_handler, TrapContext};
+use alloc::sync::{Arc,Weak};
+use alloc::vec::Vec;
+use core::cell::RefMut;
 
 /// task control block structure
 #[derive(Debug)]
@@ -18,6 +20,7 @@ pub struct TaskControlBlock {
     inner: UPSafeCell<TaskControlBlockInner>,
 }
 
+#[derive(Debug)]
 pub struct TaskControlBlockInner {
     pub trap_cx_ppn: PhysPageNum, //应用地址空间中的trap上下文 对应的物理页帧的页号
     pub base_size: usize, //应用数据仅有可能出现在应用地址低于base_size字节的区域中, 清楚知道多少数据驻留在内存中.
@@ -62,7 +65,7 @@ impl TaskControlBlock {
         let pid_handle = pid_alloc();
         let kernel_stack = KernelStack::new(&pid_handle);
         let kernel_stack_top = kernel_stack.get_top();
-        let task_status = TaskStatus::Ready;
+        // push a task context which goes to trap_return to the top of kernel stack
         let task_control_block = Self {
             pid: pid_handle,
             kernel_stack,
@@ -71,7 +74,7 @@ impl TaskControlBlock {
                     trap_cx_ppn,
                     base_size: user_sp,
                     task_cx: TaskContext::goto_trap_return(kernel_stack_top),
-                    task_status,
+                    task_status: TaskStatus::Ready,
                     memory_set,
                     parent: None,
                     children: Vec::new(),
@@ -91,7 +94,7 @@ impl TaskControlBlock {
         );
         println!(
             "Process id : [{}]  new task control block : [{:#?}]",
-            pid_handle.0, task_control_block
+            task_control_block.pid.0, task_control_block
         );
         task_control_block
     }
@@ -129,7 +132,7 @@ impl TaskControlBlock {
         // modify kernel_sp in trap_cx
         // **** access children PCB exclusively
         let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
-        trap_cx.kennel_sp = kernel_stack_top;
+        trap_cx.kernel_sp = kernel_stack_top;
         return task_control_block;
         // ---- release parent PCB automatically
         // **** release children PCB automatically

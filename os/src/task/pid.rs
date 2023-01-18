@@ -47,11 +47,12 @@ lazy_static! {
 }
 
 ///Bind pid lifetime to `PidHandle`
-
+#[derive(Debug)]
 pub struct PidHandle(pub usize);
 
 impl Drop for PidHandle {
     fn drop(&mut self) {
+        println!("drop pid {}", self.0);
         PID_ALLOCATOR.exclusive_access().dealloc(self.0);
     }
 }
@@ -69,6 +70,7 @@ pub fn kernel_stack_position(app_id: usize) -> (usize, usize) {
 }
 
 //Kernelstack for app
+#[derive(Debug)]
 pub struct KernelStack {
     pid: usize,
 }

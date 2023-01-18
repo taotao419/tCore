@@ -1,10 +1,10 @@
-use alloc::{collections::VecDeque, sync::Arc};
-
+//!Implementation of [`TaskManager`]
+use super::TaskControlBlock;
 use crate::sync::UPSafeCell;
-
-use super::task::TaskControlBlock;
+use alloc::collections::VecDeque;
+use alloc::sync::Arc;
 use lazy_static::*;
-
+///A array of `TaskControlBlock` that is thread-safe
 pub struct TaskManager {
     ready_queue: VecDeque<Arc<TaskControlBlock>>,
 }
@@ -13,16 +13,16 @@ pub struct TaskManager {
 impl TaskManager {
     pub fn new() -> Self {
         Self {
-            ready_queue: VecDequeu::new(),
+            ready_queue: VecDeque::new(),
         }
     }
-    //Add a task to TaskManager
+    ///Add a task to `TaskManager`
     pub fn add(&mut self, task: Arc<TaskControlBlock>) {
         self.ready_queue.push_back(task);
     }
-    //remove the first task and return it, or 'None' if TaskManager is empty
-    pub fn fetch(&mut self) {
-        self.ready_queue.pop_front();
+    ///Remove the first task and return it,or `None` if `TaskManager` is empty
+    pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
+        self.ready_queue.pop_front()
     }
 }
 

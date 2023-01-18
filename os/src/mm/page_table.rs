@@ -1,6 +1,6 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
-
-use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use super::{frame_alloc, FrameTracker, PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
@@ -23,6 +23,7 @@ bitflags! {
 #[repr(C)]
 /// page table entry structure
 pub struct PageTableEntry {
+    ///PTE
     pub bits: usize,
 }
 
@@ -91,10 +92,7 @@ impl PageTable {
             if !pte.is_valid() {
                 let frame = frame_alloc().unwrap();
                 *pte = PageTableEntry::new(frame.ppn, PTEFlags::V);
-                println!(
-                    "[KERNEL] Page Table Entry frames push new frame [{:#?}]",
-                    frame
-                );
+                // println!( "[KERNEL] Page Table Entry frames push new frame [{:#?}]", frame);
                 self.frames.push(frame);
             }
             ppn = pte.ppn();
@@ -133,6 +131,16 @@ impl PageTable {
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.find_pte(vpn).map(|pte| *pte)
     }
+    pub fn translate_va(&self, va: VirtAddr) -> Option<PhysAddr> {
+        self.find_pte(va.clone().floor()).map(|pte| {
+            //println!("translate_va:va = {:?}", va);
+            let aligned_pa: PhysAddr = pte.ppn().into();
+            //println!("translate_va:pa_align = {:?}", aligned_pa);
+            let offset = va.page_offset();
+            let aligned_pa_usize: usize = aligned_pa.into();
+            (aligned_pa_usize + offset).into()
+        })
+    }
     pub fn token(&self) -> usize {
         8usize << 60 | self.root_ppn.0
     }
@@ -167,7 +175,10 @@ pub fn translated_str(token: usize, ptr: *const u8) -> String {
     let mut string = String::new();
     let mut va = ptr as usize;
     loop {
-        let ch: u8 = *(page_table.translate(VirtAddr::from(va)).unwrap().get_mut());
+        let ch: u8 = *(page_table
+            .translate_va(VirtAddr::from(va))
+            .unwrap()
+            .get_mut());
         if ch == 0 {
             break;
         } else {

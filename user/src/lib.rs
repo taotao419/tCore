@@ -9,6 +9,7 @@ mod lang_items;
 mod syscall;
 
 use buddy_system_allocator::LockedHeap;
+use syscall::*;
 
 const USER_HEAP_SIZE: usize = 16384;
 
@@ -37,8 +38,6 @@ pub extern "C" fn _start() -> ! {
 fn main() -> i32 {
     panic!("Cannot find main!");
 }
-
-use syscall::*;
 
 pub fn read(fd: usize, buf: &mut [u8]) -> isize {
     sys_read(fd, buf)
@@ -96,5 +95,11 @@ pub fn waitpid(pid: usize, exit_code: &mut i32) -> isize {
             //-1 表示没有子进程 or a real pid 此子进程销毁
             exit_pid => return exit_pid,
         }
+    }
+}
+pub fn sleep(period_ms: usize) {
+    let start = sys_get_time();
+    while sys_get_time() < start + period_ms as isize {
+        sys_yield();
     }
 }

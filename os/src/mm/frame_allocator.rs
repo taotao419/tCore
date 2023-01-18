@@ -3,7 +3,7 @@
 
 use super::{PhysAddr, PhysPageNum};
 use crate::logger::info2;
-use crate::{config::MEMORY_END};
+use crate::config::MEMORY_END;
 use crate::sync::UPSafeCell;
 use alloc::vec::Vec;
 use core::fmt::{self, Debug, Formatter};

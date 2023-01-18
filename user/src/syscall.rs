@@ -38,8 +38,9 @@ pub fn sys_write(fd: usize, buffer: &[u8]) -> isize {
     syscall(SYSCALL_WRITE, [fd, buffer.as_ptr() as usize, buffer.len()])
 }
 
-pub fn sys_exit(exit_code: i32) -> isize {
-    syscall(SYSCALL_EXIT, [exit_code as usize, 0, 0])
+pub fn sys_exit(exit_code: i32) -> ! {
+    syscall(SYSCALL_EXIT, [exit_code as usize, 0, 0]);
+    panic!("sys_exit never returns!");
 }
 
 pub fn sys_yield() -> isize {
@@ -59,7 +60,7 @@ pub fn sys_fork() -> isize {
 }
 
 pub fn sys_exec(path: &str) -> isize {
-    syscall(SYSCALL_FORK, [path.as_ptr() as usize, 0, 0])
+    syscall(SYSCALL_EXEC, [path.as_ptr() as usize, 0, 0])
 }
 
 //pid是一个只读变量, exit_code 会返回-1 / -2 或者结束子进程的pid 所以前面要加*mut

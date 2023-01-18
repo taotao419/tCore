@@ -6,6 +6,7 @@ use crate::task::{
     suspend_current_and_run_next,
 };
 use crate::timer::get_time_ms;
+use alloc::sync::Arc;
 
 /// task exits and submit an exit code
 pub fn sys_exit(exit_code: i32) -> ! {
@@ -28,11 +29,13 @@ pub fn sys_getpid() -> isize {
     current_task().unwrap().pid.0 as isize
 }
 
-pub fn sys_fork() -> iszie {
+pub fn sys_fork() -> isize {
     let current_task = current_task().unwrap();
     let new_task = current_task.fork();
     let new_pid = new_task.pid.0;
+    // modify trap context of new_task, because it returns immediately after switching
     let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
+    // we do not have to move to next instruction since we have done it before
     // for child process, fork returns 0
     trap_cx.x[10] = 0;
     //add new task to scheduler
@@ -57,7 +60,9 @@ pub fn sys_exec(path: *const u8) -> isize {
 /// Else if there is a child process but it is still running, return -2.
 pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     let task = current_task().unwrap();
+    // find a child process
 
+    // ---- access current TCB exclusively
     let mut inner = task.inner_exclusive_access();
     if !inner
         .children
@@ -65,6 +70,7 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
         .any(|p| pid == -1 || pid as usize == p.getpid())
     {
         return -1;
+        // ---- release current PCB
     }
     let pair = inner.children.iter().enumerate().find(|(_, p)| {
         // ++++ temporarily access child PCB lock exclusively
@@ -76,10 +82,13 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
         // confirm that child will be deallocated after removing from children list
         assert_eq!(Arc::strong_count(&child), 1);
         let found_pid = child.getpid();
+        // ++++ temporarily access child TCB exclusively
         let exit_code = child.inner_exclusive_access().exit_code;
+        // ++++ release child PCB
         *translated_refmut(inner.memory_set.token(), exit_code_ptr) = exit_code;
         return found_pid as isize;
     }else{
         return -2;
     }
+    // ---- release current PCB lock automatically
 }

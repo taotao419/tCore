@@ -40,12 +40,14 @@ pub struct MemorySet {
 }
 
 impl MemorySet {
+    ///Create an empty `MemorySet`
     pub fn new_bare() -> Self {
         Self {
             page_table: PageTable::new(),
             areas: Vec::new(),
         }
     }
+    ///Get pagetable `root_ppn`
     pub fn token(&self) -> usize {
         self.page_table.token()
     }
@@ -274,13 +276,15 @@ impl MemorySet {
     //Clone a same MemorySet
     pub fn from_existed_user(user_space: &Self) -> Self {
         let mut memory_set = Self::new_bare();
+        // map trampoline
         memory_set.map_trampoline("from_existed_user");
+        // copy data sections/trap_context/user_stack  
         for area in user_space.areas.iter() {
             let new_area = MapArea::from_another(area);
             memory_set.push(new_area, None);
             //copy data from another space
             for vpn in area.vpn_range {
-                let scr_ppn = user_space.translate(vpn).unwrap().ppn();
+                let src_ppn = user_space.translate(vpn).unwrap().ppn();
                 let dst_ppn = memory_set.translate(vpn).unwrap().ppn();
                 dst_ppn
                     .get_bytes_array()
@@ -300,7 +304,7 @@ impl MemorySet {
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.page_table.translate(vpn)
     }
-    //Remove all 'MapArea'
+    ///Remove all `MapArea`
     pub fn recycle_data_pages(&mut self){
         self.areas.clear();
     }
@@ -423,14 +427,19 @@ pub enum SectionType {
 bitflags! {
     /// map permission corresponding to that in pte: `R W X U`
     pub struct MapPermission: u8 {
+        ///Readable
         const R = 1 << 1;
+        ///Writable
         const W = 1 << 2;
+        ///Excutable
         const X = 1 << 3;
+        ///Accessible in U mode
         const U = 1 << 4;
     }
 }
 
 #[allow(unused)]
+///Check PageTable running correctly
 pub fn remap_test() {
     let mut kernel_space = KERNEL_SPACE.exclusive_access();
     let mid_text: VirtAddr = ((stext as usize + etext as usize) / 2).into();

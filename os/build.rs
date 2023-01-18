@@ -38,7 +38,12 @@ _num_app:
     }
     writeln!(f, r#"    .quad app_{}_end"#, apps.len() - 1)?;
 
-    writeln!( f, r#" .global _app_names _app_names:"#)?;
+    writeln!(
+        f,
+        r#"
+    .global _app_names
+_app_names:"#
+    )?;
     for app in apps.iter() {
         writeln!(f, r#"    .string "{}""#, app)?;
     }
