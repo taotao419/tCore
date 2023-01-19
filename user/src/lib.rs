@@ -26,8 +26,9 @@ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
 #[no_mangle]
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
-    unsafe{
-        HEAP.lock().init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
+    unsafe {
+        HEAP.lock()
+            .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
     }
     exit(main());
     panic!("unreachable after sys_exit!");
@@ -48,7 +49,8 @@ pub fn write(fd: usize, buf: &[u8]) -> isize {
 }
 
 pub fn exit(exit_code: i32) -> isize {
-    return sys_exit(exit_code);
+    sys_exit(exit_code);
+    return 0;
 }
 
 pub fn yield_() -> isize {
@@ -104,6 +106,10 @@ pub fn sleep(period_ms: usize) {
     }
 }
 
-pub fn list_apps()  {
+pub fn shutdown() {
+    sys_shutdown();
+}
+
+pub fn list_apps() {
     sys_list_apps();
 }
