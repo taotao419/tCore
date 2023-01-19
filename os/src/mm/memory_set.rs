@@ -96,10 +96,10 @@ impl MemorySet {
             PhysAddr::from(strampoline as usize).into(),
             PTEFlags::R | PTEFlags::X,
         );
-        println!(
-            "[{}] mapping trampoline section Virtual Address [{:#x}] Physical Address [{:#x}]",
-            type_name, TRAMPOLINE, strampoline as usize
-        );
+        // println!(
+        //     "[{}] mapping trampoline section Virtual Address [{:#x}] Physical Address [{:#x}]",
+        //     type_name, TRAMPOLINE, strampoline as usize
+        // );
     }
     /// Without kernel stacks.
     pub fn new_kernel() -> Self {
@@ -194,7 +194,7 @@ impl MemorySet {
                 ((*pair).0 + (*pair).1)
             );
         }
-        println!("[KERNEL] init memory set {:#?}", memory_set);
+        // println!("[KERNEL] init memory set {:#?}", memory_set);
         memory_set
     }
     /// Include sections in elf and trampoline and TrapContext and user stack,

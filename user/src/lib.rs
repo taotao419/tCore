@@ -23,6 +23,8 @@ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
     panic!("Heap allocation error, layout = {:?}", layout);
 }
 
+///这一块是很trick的地方, 在汇编入口.text.entry 也就是汇编代码的第一行 开始执行如下方法
+/// http://rcore-os.cn/rCore-Tutorial-Book-v3/chapter2/2application.html#id4
 #[no_mangle]
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
@@ -30,6 +32,7 @@ pub extern "C" fn _start() -> ! {
         HEAP.lock()
             .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
     }
+    println!("start from main");
     exit(main());
     panic!("unreachable after sys_exit!");
 }
@@ -49,6 +52,7 @@ pub fn write(fd: usize, buf: &[u8]) -> isize {
 }
 
 pub fn exit(exit_code: i32) -> isize {
+    println!("\x1b[93m [USER] this is call exit from user lib -- pid : [{}] -- exit_code : [{}] \x1b[0m",getpid(),exit_code);
     sys_exit(exit_code);
     return 0;
 }
@@ -73,6 +77,7 @@ pub fn exec(path: &str) -> isize {
     sys_exec(path)
 }
 
+///父进程等待任一一个子进程销毁
 pub fn wait(exit_code: &mut i32) -> isize {
     loop {
         //-1表示任意一个子进程
@@ -81,8 +86,11 @@ pub fn wait(exit_code: &mut i32) -> isize {
                 //如果返回值是 -2 , 则需要让出CPU, 进入下一轮循环
                 yield_();
             }
-            //-1 表示没有子进程 or a real pid 此子进程销毁
-            exit_pid => return exit_pid,
+            //a real pid 此子进程销毁
+            exit_pid => {
+                println!("user app call sys_wait, exit pid : [{}]",exit_pid);
+                return exit_pid
+            },
         }
     }
 }

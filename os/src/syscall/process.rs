@@ -50,7 +50,7 @@ pub fn sys_exec(path: *const u8) -> isize {
     let path = translated_str(token, path);
     if let Some(data) = get_app_data_by_name(path.as_str()) {
         let task = current_task().unwrap();
-        task.exec(data);
+        task.exec(path.as_str(), data);
         return 0;
     } else {
         return -1;

@@ -1,12 +1,13 @@
-
 use super::pid::{KernelStack, PidHandle};
 use super::TaskContext;
 use crate::config::TRAP_CONTEXT;
+use crate::logger::{info, info2};
 use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::task::pid::pid_alloc;
 use crate::trap::{trap_handler, TrapContext};
-use alloc::sync::{Arc,Weak};
+use alloc::string::{String, ToString};
+use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use core::cell::RefMut;
 
@@ -27,9 +28,10 @@ pub struct TaskControlBlockInner {
     pub task_cx: TaskContext, //暂停任务上下文保持在此
     pub task_status: TaskStatus, //执行状态
     pub memory_set: MemorySet, //应用地址空间
+    pub app_name: String,
     pub parent: Option<Weak<TaskControlBlock>>, //父进程
-    pub children: Vec<Arc<TaskControlBlock>>, //多个子进程
-    pub exit_code: i32,   //当进程主动调用exit 或者执行出错被内核杀死, 它的退出码会不同
+    pub children: Vec<Arc<TaskControlBlock>>,   //多个子进程
+    pub exit_code: i32, //当进程主动调用exit 或者执行出错被内核杀死, 它的退出码会不同
 }
 
 impl TaskControlBlockInner {
@@ -77,6 +79,7 @@ impl TaskControlBlock {
                     task_status: TaskStatus::Ready,
                     memory_set,
                     parent: None,
+                    app_name: String::new(),
                     children: Vec::new(),
                     exit_code: 0,
                 })
@@ -92,10 +95,7 @@ impl TaskControlBlock {
             kernel_stack_top,
             trap_handler as usize,
         );
-        println!(
-            "Process id : [{}]  new task control block : [{:#?}]",
-            task_control_block.pid.0, task_control_block
-        );
+        info("App name : init_proc , Process id : ", &task_control_block.pid.0);
         task_control_block
     }
 
@@ -121,6 +121,7 @@ impl TaskControlBlock {
                     task_cx: TaskContext::goto_trap_return(kernel_stack_top),
                     task_status: TaskStatus::Ready,
                     memory_set,
+                    app_name:String::new(),
                     parent: Some(Arc::downgrade(self)),
                     children: Vec::new(),
                     exit_code: 0,
@@ -133,12 +134,14 @@ impl TaskControlBlock {
         // **** access children PCB exclusively
         let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
         trap_cx.kernel_sp = kernel_stack_top;
+        info("[KERNEL] Fork parent Process id : ", &self.getpid());
+        info("[KERNEL] Fork new process id : ", &task_control_block.getpid());
         return task_control_block;
         // ---- release parent PCB automatically
         // **** release children PCB automatically
     }
 
-    pub fn exec(&self, elf_data: &[u8]) {
+    pub fn exec(&self, app_name: &str, elf_data: &[u8]) {
         // memory_set with elf program headers/trampoline/trap context/user stack
         let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
         let trap_cx_ppn = memory_set
@@ -150,6 +153,7 @@ impl TaskControlBlock {
         inner.memory_set = memory_set;
         inner.trap_cx_ppn = trap_cx_ppn;
         inner.base_size = user_sp;
+        inner.app_name = app_name.to_string();
         let trap_cx = inner.get_trap_cx();
         *trap_cx = TrapContext::app_init_context(
             entry_point,
@@ -158,6 +162,8 @@ impl TaskControlBlock {
             self.kernel_stack.get_top(),
             trap_handler as usize,
         );
+        info("[KERNEL] EXEC Process id : ", &self.getpid());
+        info("[KERNEL] EXEC App name : ", &inner.app_name);
     }
 
     pub fn getpid(&self) -> usize {

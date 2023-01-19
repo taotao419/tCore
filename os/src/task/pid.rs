@@ -85,10 +85,10 @@ impl KernelStack {
             kernel_stack_top.into(),
             MapPermission::R | MapPermission::W,
         );
-        println!(
-            "[KERNEL] mapping stack section for APP:{}  [{:#x}, {:#x})",
-            pid, kernel_stack_bottom, kernel_stack_top
-        );
+        // println!(
+        //     "[KERNEL] mapping stack section for APP:{}  [{:#x}, {:#x})",
+        //     pid, kernel_stack_bottom, kernel_stack_top
+        // );
         return KernelStack { pid: pid_handle.0 };
     }
 

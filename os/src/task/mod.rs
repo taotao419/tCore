@@ -93,7 +93,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
     inner.children.clear();
     inner.memory_set.recycle_data_pages();
     drop(inner);
-    drop(task);
+    drop(task); //最最关键的一步, task drop掉 也就意味着task queue里面没有此task了
     // we do not have to save task context
     let mut _unused = TaskContext::zero_init();
     schedule(&mut _unused as *mut _);

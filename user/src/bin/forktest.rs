@@ -26,6 +26,7 @@ pub fn main() -> i32 {
             panic!("wait stopped early");
         }
     }
+    //上面循环30次等待释放子进程, 走到这里不应该还有子进程还没关闭, 所以返回值应该为-1
     if wait(&mut exit_code) > 0 {
         panic!("wait got too many");
     }
