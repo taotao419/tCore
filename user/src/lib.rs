@@ -103,3 +103,7 @@ pub fn sleep(period_ms: usize) {
         sys_yield();
     }
 }
+
+pub fn list_apps()  {
+    sys_list_apps();
+}

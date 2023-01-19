@@ -1,5 +1,5 @@
 //! Process management syscalls
-use crate::loader::get_app_data_by_name;
+use crate::loader::{get_app_data_by_name, list_apps};
 use crate::mm::{translated_refmut, translated_str};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
@@ -87,8 +87,13 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
         // ++++ release child PCB
         *translated_refmut(inner.memory_set.token(), exit_code_ptr) = exit_code;
         return found_pid as isize;
-    }else{
+    } else {
         return -2;
     }
     // ---- release current PCB lock automatically
+}
+
+pub fn sys_list_apps() -> isize {
+    list_apps();
+    return 0;
 }

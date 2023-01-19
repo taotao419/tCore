@@ -20,7 +20,7 @@ const BS: u8 = 0x08u8; //Back Space
 pub fn main() -> i32 {
     println!("Rust user shell");
     let mut line: String = String::new();
-    print!("&>> ");
+    print!("输入应用名称 >> ");
     loop {
         let c = getchar();
         match c {
