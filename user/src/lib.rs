@@ -8,6 +8,9 @@ pub mod console;
 mod lang_items;
 mod syscall;
 
+#[macro_use]
+extern crate bitflags;
+
 use buddy_system_allocator::LockedHeap;
 use syscall::*;
 
@@ -43,6 +46,24 @@ fn main() -> i32 {
     panic!("Cannot find main!");
 }
 
+bitflags! {
+    pub struct OpenFlags:u32{
+        const RDONLY=0;
+        const WRONLY=1<<0; //第0位 设置为1
+        const RDWR=1<<1; //第1位 设置为1 可读可写
+        const CREATE=1<<9; //第9位 设置为1 创建文件
+        const TRUNC=1<<10; //第10位 设置为1 清空文件内容 并将该文件的大小归零
+    }
+}
+
+pub fn open(path: &str, flags: OpenFlags) -> isize {
+    return sys_open(path,flags.bits);
+}
+
+pub fn close(fd:usize)->isize{
+    return sys_close(fd);
+}
+
 pub fn read(fd: usize, buf: &mut [u8]) -> isize {
     sys_read(fd, buf)
 }
@@ -52,7 +73,11 @@ pub fn write(fd: usize, buf: &[u8]) -> isize {
 }
 
 pub fn exit(exit_code: i32) -> isize {
-    println!("\x1b[93m [USER] this is call exit from user lib -- pid : [{}] -- exit_code : [{}] \x1b[0m",getpid(),exit_code);
+    println!(
+        "\x1b[93m [USER] this is call exit from user lib -- pid : [{}] -- exit_code : [{}] \x1b[0m",
+        getpid(),
+        exit_code
+    );
     sys_exit(exit_code);
     return 0;
 }
@@ -88,9 +113,9 @@ pub fn wait(exit_code: &mut i32) -> isize {
             }
             //a real pid 此子进程销毁
             exit_pid => {
-                println!("user app call sys_wait, exit pid : [{}]",exit_pid);
-                return exit_pid
-            },
+                println!("user app call sys_wait, exit pid : [{}]", exit_pid);
+                return exit_pid;
+            }
         }
     }
 }
