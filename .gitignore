@@ -1,4 +1,4 @@
 os/target
 user/target
 *.lock
-easy-fs/target/*
+easy-fs/target/

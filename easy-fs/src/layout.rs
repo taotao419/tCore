@@ -7,6 +7,8 @@ use core::fmt::{Debug, Formatter, Result};
 const EFS_MAGIC: u32 = 0x3b800001;
 /// The max number of direct inodes
 const INODE_DIRECT_COUNT: usize = 28;
+/// The max length of inode name
+const NAME_LENGTH_LIMIT: usize = 27;
 /// The max number of indirect1 inodes
 const INODE_INDIRECT1_COUNT: usize = BLOCK_SZ / 4;
 /// The max number of indirect2 indoes
@@ -73,6 +75,8 @@ pub enum DiskInodeType {
 }
 /// A indirect block
 type IndirectBlock = [u32; BLOCK_SZ / 4];
+/// A data block
+type DataBlock = [u8; BLOCK_SZ];
 ///A disk inode
 #[repr(C)]
 pub struct DiskInode {
@@ -158,8 +162,8 @@ impl DiskInode {
     /// Increase the size of current disk inode
     pub fn increase_size(
         &mut self,
-        new_size: u32,
-        new_blocks: Vec<u32>,
+        new_size: u32,        //扩容后文件大小
+        new_blocks: Vec<u32>, //本次扩容所增加的块编号的数组(向量)
         block_device: &Arc<dyn BlockDevice>,
     ) {
         let mut current_blocks = self.data_blocks();
@@ -171,5 +175,272 @@ impl DiskInode {
             self.direct[current_blocks as usize] = new_blocks.next().unwrap();
             current_blocks += 1;
         }
+        //alloc indirect1 如果28个direct已经慢了
+        if total_blocks > INODE_DIRECT_COUNT as u32 {
+            if current_blocks == INODE_DIRECT_COUNT as u32 {
+                //如果是全新文件, 而且现在已经大于28个直接索引, 需要加入一级索引块
+                self.indirect1 = new_blocks.next().unwrap();
+            } //如果没走上面的if, 说明是老文件, 早有一级索引块了 无需新增了
+            current_blocks -= INODE_DIRECT_COUNT as u32;
+            total_blocks -= INODE_DIRECT_COUNT as u32;
+        } else {
+            return; //此处说明文件小于28个数据块, 无需一级索引 直接退出.
+        }
+        // fill indirect1
+        get_block_cache(self.indirect1 as usize, Arc::clone(block_device))
+            .lock()
+            .modify(0, |indirect1: &mut IndirectBlock| {
+                while current_blocks < total_blocks.min(INODE_INDIRECT1_COUNT as u32) {
+                    //blocks from 29 to 128
+                    indirect1[current_blocks as usize] = new_blocks.next().unwrap(); //把扩容的块编号, 写入一级索引块中
+                    current_blocks += 1;
+                }
+            });
+        //alloc indirect2
+        if total_blocks > INODE_INDIRECT1_COUNT as u32 {
+            if current_blocks == INODE_INDIRECT1_COUNT as u32 {
+                //如果是全新文件, 而且现在已经大于128个直接索引, 需要加入二级索引块. 从数据块数组里取一块,作为二级索引块
+                self.indirect2 = new_blocks.next().unwrap();
+            }
+            current_blocks -= INODE_INDIRECT1_COUNT as u32; // from 128
+            total_blocks -= INODE_INDIRECT1_COUNT as u32;
+        } else {
+            return; //走到此处 说明无需二级索引
+        }
+        // fill indirect2 from (a0,b0)->(a1,b1) 目的是 需要把a0,b0 一步步走到(索引块内容填上) a1,b1
+        // 可以理解为坐标, (a0,b0)就是字符Y所在位置, 需要走到字符Z所在位置 (a1,b1)
+        // ###############    每行128个格子, 填上一个索引值就从.-->#
+        // ######Y########
+        // ###############
+        // ##########Z....
+        let mut a0 = current_blocks as usize / INODE_INDIRECT1_COUNT; //a0 表示第几个 一级缓存块
+        let mut b0 = current_blocks as usize % INODE_INDIRECT1_COUNT; //b0 表示这个一级缓存块 存的数组里具体第几个
+        let a1 = total_blocks as usize / INODE_INDIRECT1_COUNT; //a1 同上
+        let b1 = total_blocks as usize % INODE_INDIRECT1_COUNT; //b1同上
+                                                                //alloc low-level indirect1
+        get_block_cache(self.indirect2 as usize, Arc::clone(block_device))
+            .lock()
+            .modify(0, |indirect2: &mut IndirectBlock| {
+                while (a0 < a1) || (a0 == a1 && b0 < b1) {
+                    //坐标(a0,b0) 当还没走到 (a1,b1)时
+                    if b0 == 0 {
+                        //全新的一行
+                        indirect2[a0] = new_blocks.next().unwrap(); //增加一个一级索引块, 并把值写入二级索引块
+                    }
+                    get_block_cache(indirect2[a0] as usize, Arc::clone(block_device))
+                        .lock()
+                        .modify(0, |indirect1: &mut IndirectBlock| {
+                            indirect1[b0] = new_blocks.next().unwrap(); //扩容, 然后把扩容的块编号, 写入一级索引块中
+                        });
+                    //move to next
+                    b0 += 1; //格子走一步
+                    if b0 == INODE_INDIRECT1_COUNT {
+                        //格子走到128格后 换一行,继续走
+                        b0 = 0;
+                        a0 += 1;
+                    }
+                }
+            });
+    }
+
+    /// Clear size to zero and return blocks that should be deallocated.
+    /// We will clear the block contents to zero later. 回收的所有块编号 作为Vec<u32>类型返回
+    pub fn clear_size(&mut self, block_device: &Arc<dyn BlockDevice>) -> Vec<u32> {
+        let mut v: Vec<u32> = Vec::new();
+        let mut data_blocks = self.data_blocks() as usize;
+        self.size = 0; //清空后文件大小自然是0
+        let mut current_blocks = 0usize;
+        // direct, 清空直接索引数组, 里面全部置零
+        while current_blocks < data_blocks.min(INODE_DIRECT_COUNT) {
+            v.push(self.direct[current_blocks]); //直接索引的block_id放入已回收数组
+            self.direct[current_blocks] = 0;
+            current_blocks += 1;
+        }
+        // indirect1 block , 如果大于28, 继续清空一级索引块
+        if data_blocks > INODE_DIRECT_COUNT {
+            v.push(self.indirect1); //数据块放入回收数组
+            data_blocks -= INODE_DIRECT_COUNT; //从第29块开始
+            current_blocks = 0;
+        } else {
+            return v;
+        }
+        // indirect1
+        get_block_cache(self.indirect1 as usize, Arc::clone(block_device))
+            .lock()
+            .modify(0, |indirect1: &mut IndirectBlock| {
+                //一级索引块保存的u32数组中数值就是数据块编号,遍历并放入回收数组
+                while current_blocks < data_blocks.min(INODE_INDIRECT1_COUNT) {
+                    v.push(indirect1[current_blocks]); //数据块放入回收数组
+                    current_blocks += 1;
+                }
+            });
+        self.indirect1 = 0; //一级索引块的编号 置零
+                            // indirect 2 block
+        if data_blocks > INODE_INDIRECT1_COUNT {
+            v.push(self.indirect2); //回收二级索引块的块编号
+            data_blocks -= INODE_INDIRECT1_COUNT;
+        } else {
+            return v; // 如果不大于128块, 说明无需二级索引块 直接退出
+        }
+        // indirect2
+        assert!(data_blocks <= INODE_INDIRECT2_COUNT);
+        // 可以理解为坐标, 从左上角的原点一路清空到(a1,b1)的位置Z
+        // ###############    每行128个格子, 清空一个索引值就从 #-->.
+        // ###############
+        // ###############
+        // ##########Z....
+        let a1 = data_blocks / INODE_INDIRECT1_COUNT;
+        let b1 = data_blocks % INODE_INDIRECT1_COUNT;
+        get_block_cache(self.indirect2 as usize, Arc::clone(block_device))
+            .lock()
+            .modify(0, |indirect2: &mut IndirectBlock| {
+                // full indirect1 blocks
+                for entry in indirect2.iter_mut().take(a1) {
+                    v.push(*entry);
+                    get_block_cache(*entry as usize, Arc::clone(block_device))
+                        .lock()
+                        .modify(0, |indirect1: &mut IndirectBlock| {
+                            for entry in indirect1.iter() {
+                                v.push(*entry); //循环 清空整行 回收所有数据块编号
+                            }
+                        })
+                }
+                // last indirect1 block
+                if b1 > 0 {
+                    v.push(indirect2[a1]);
+                    get_block_cache(indirect2[a1] as usize, Arc::clone(block_device))
+                        .lock()
+                        .modify(0, |indirect1: &mut IndirectBlock| {
+                            for entry in indirect1.iter().take(b1) {
+                                v.push(*entry); //清空最后一行, 清到b1的位置. 回收数据块编号
+                            }
+                        })
+                }
+            });
+        self.indirect2 = 0; //二级索引块的编号 置零
+        return v;
+    }
+    /// Read data from current disk inode, 读数据块的内容 读入到buf中
+    pub fn read_at(
+        &self,
+        offset: usize,
+        buf: &mut [u8],
+        block_device: &Arc<dyn BlockDevice>,
+    ) -> usize {
+        let mut start = offset;
+        let end = (offset + buf.len()).min(self.size as usize); //终止位置要么是buf全满的位置, 要么是文件终点.
+        if start >= end {
+            return 0;
+        }
+        let mut start_block = start / BLOCK_SZ; //起始数据块index
+        let mut read_size = 0usize;
+        loop {
+            //每轮循环读一个数据块
+            // calculate end of current block 终止数据块index
+            let mut end_current_block = (start / BLOCK_SZ + 1) * BLOCK_SZ;
+            end_current_block = end_current_block.min(end); // end_current_block在此轮循环中数据块终点位置 最后一轮循环就是end
+                                                            // read and update read size
+            let block_read_size = end_current_block - start;
+            let dst = &mut buf[read_size..read_size + block_read_size]; //先定义这么大一块数组[u8]
+            get_block_cache(
+                self.get_block_id(start_block as u32, block_device) as usize,
+                Arc::clone(block_device),
+            )
+            .lock()
+            .read(0, |data_block: &DataBlock| {
+                let src = &data_block[start % BLOCK_SZ..start % BLOCK_SZ + block_read_size];
+                dst.copy_from_slice(src); //把数据块缓存的内容复制到buf数组去
+            });
+            read_size += block_read_size; //记录下 此轮已经读过了512B (如果不是最后一轮的话)
+                                          // move to next block
+            if end_current_block == end {
+                break; //文件终点如果就是此块的终点, 说明是最后一轮循环, 退出
+            }
+            start_block += 1; //记录读了几块数据块
+            start = end_current_block;
+        }
+        return read_size; //返回实际读到的字节数
+    }
+    /// Write data into current disk inode  基本逻辑与read_at相同. 区别自然是从buf写入到数据块缓存中
+    /// size must be adjusted properly beforehand
+    pub fn write_at(
+        &mut self,
+        offset: usize,
+        buf: &[u8],
+        block_device: &Arc<dyn BlockDevice>,
+    ) -> usize {
+        let mut start = offset;
+        let end = (offset + buf.len()).min(self.size as usize);
+        assert!(start <= end);
+        let mut start_block = start / BLOCK_SZ;
+        let mut write_size = 0usize;
+        loop {
+            // calculate end of current block 终止数据块index
+            let mut end_current_block = (start / BLOCK_SZ + 1) * BLOCK_SZ;
+            end_current_block = end_current_block.min(end);
+            // write and update write size
+            let block_write_size = end_current_block - start;
+            get_block_cache(
+                self.get_block_id(start_block as u32, block_device) as usize,
+                Arc::clone(block_device),
+            )
+            .lock()
+            .modify(0, |data_block: &mut DataBlock| {
+                let src = &buf[write_size..write_size + block_write_size];
+                let dst = &mut data_block[start % BLOCK_SZ..start % BLOCK_SZ + block_write_size];
+                dst.copy_from_slice(src);
+            });
+            write_size += block_write_size;
+            //move to next block
+            if end_current_block == end {
+                break;
+            }
+            start_block += 1;
+            start = end_current_block;
+        }
+        return write_size;
+    }
+}
+
+#[repr(C)]
+pub struct DirEntry {
+    name: [u8; NAME_LENGTH_LIMIT + 1],
+    inode_number: u32,
+}
+/// Size of a directory entry
+pub const DIRENT_SZ: usize = 32;
+
+impl DirEntry {
+    pub fn empty() -> Self {
+        Self {
+            name: [0u8; NAME_LENGTH_LIMIT + 1],
+            inode_number: 0,
+        }
+    }
+
+    pub fn new(name: &str, inode_number: u32) -> Self {
+        let mut bytes = [0u8; NAME_LENGTH_LIMIT + 1];
+        bytes[..name.len()].copy_from_slice(name.as_bytes()); //把&str copy到[u8]数组去
+        Self {
+            name: bytes,
+            inode_number,
+        }
+    }
+    /// Serialize into bytes
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self as *const _ as usize as *const u8, DIRENT_SZ) }
+    }
+    /// Serialize into mutable bytes
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        unsafe { core::slice::from_raw_parts_mut(self as *mut _ as usize as *mut u8, DIRENT_SZ) }
+    }
+    /// Get name of the entry
+    pub fn name(&self) -> &str {
+        let len = (0usize..).find(|i| self.name[*i] == 0).unwrap();//找到name这个数组里面元素0的位置. 此位置即是字符串结束位
+        return core::str::from_utf8(&self.name[..len]).unwrap();//byte[] ==> &str
+    }
+    /// Get inode number of the entry
+    pub fn inode_number(&self) ->u32{
+        return self.inode_number;
     }
 }
