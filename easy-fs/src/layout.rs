@@ -20,6 +20,7 @@ const INDIRECT1_BOUND: usize = DIRECT_BOUND + INODE_INDIRECT1_COUNT;
 ///The upper bound of indirect2 inode indexes
 #[allow(unused)]
 const INDIRECT2_BOUND: usize = INDIRECT1_BOUND + INODE_INDIRECT2_COUNT;
+/// Super block of a filesystem
 #[repr(C)]
 pub struct SuperBlock {
     magic: u32,
@@ -68,11 +69,13 @@ impl SuperBlock {
     }
 }
 
+/// Type of a disk inode
 #[derive(PartialEq)]
 pub enum DiskInodeType {
     File,
     Directory,
 }
+
 /// A indirect block
 type IndirectBlock = [u32; BLOCK_SZ / 4];
 /// A data block
@@ -97,11 +100,12 @@ impl DiskInode {
         self.indirect2 = 0;
         self.type_ = type_;
     }
-
+    /// Whether this inode is a directory
     pub fn is_dir(&self) -> bool {
         self.type_ == DiskInodeType::Directory
     }
-
+    /// Whether this inode is a file
+    #[allow(unused)]
     pub fn is_file(&self) -> bool {
         self.type_ == DiskInodeType::File
     }
@@ -402,6 +406,7 @@ impl DiskInode {
     }
 }
 
+/// A directory entry
 #[repr(C)]
 pub struct DirEntry {
     name: [u8; NAME_LENGTH_LIMIT + 1],

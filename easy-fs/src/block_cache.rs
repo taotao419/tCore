@@ -1,9 +1,7 @@
-use crate::block_dev::{self, BlockDevice};
+use super::{BlockDevice, BLOCK_SZ};
 use alloc::{collections::VecDeque, sync::Arc};
 use lazy_static::*;
 use spin::Mutex;
-
-use super::BLOCK_SZ;
 
 pub struct BlockCache {
     //Cached block data
