@@ -147,7 +147,7 @@ impl DiskInode {
             get_block_cache(self.indirect1 as usize, Arc::clone(block_device))
                 .lock()
                 .read(0, |indirect_block: &IndirectBlock| {
-                    indirect_block[inner_id - INODE_INDIRECT1_COUNT]
+                    indirect_block[inner_id - INODE_DIRECT_COUNT]
                 })
         } else {
             let last = inner_id - INDIRECT1_BOUND;
