@@ -200,3 +200,25 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .unwrap()
         .get_mut()
 }
+
+/// Array of u8 slice that user communicate with os
+/// 一个[u8] 数组的 集合 (也就是一堆数组)
+pub struct UserBuffer {
+    ///U8 Vec
+    pub buffers: Vec<&'static mut [u8]>,
+}
+
+impl UserBuffer {
+    ///Create a `UserBuffer` by parameter
+    pub fn new(buffers: Vec<&'static mut [u8]>) -> Self {
+        Self { buffers }
+    }
+    ///length of `UserBuffer`
+    pub fn len(&self) -> usize {
+        let mut total: usize = 0;
+        for b in self.buffers.iter() {
+            total += b.len();
+        }
+        return total;
+    }
+}

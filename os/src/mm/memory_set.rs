@@ -32,6 +32,11 @@ lazy_static! {
         Arc::new(unsafe { UPSafeCell::new(MemorySet::new_kernel()) });
 }
 
+///Get kernelspace root ppn
+pub fn kernel_token() -> usize {
+    KERNEL_SPACE.exclusive_access().token()
+}
+
 /// memory set structure, controls virtual-memory space
 #[derive(Debug)]
 pub struct MemorySet {
@@ -184,7 +189,7 @@ impl MemorySet {
                     ((*pair).0 + (*pair).1).into(),
                     MapType::Identical,
                     MapPermission::R | MapPermission::W,
-                    SectionType::Unknow,
+                    SectionType::Device_Block,
                 ),
                 None,
             );
@@ -422,6 +427,7 @@ pub enum SectionType {
     Heap,
     TrapContext,
     Kernel_Stack,
+    Device_Block,
 }
 
 bitflags! {

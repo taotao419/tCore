@@ -31,6 +31,8 @@ extern crate bitflags;
 
 #[path = "boards/qemu.rs"]
 mod board;
+mod fs;
+mod drivers;
 
 use core::arch::global_asm;
 
