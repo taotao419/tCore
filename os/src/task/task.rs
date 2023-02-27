@@ -1,6 +1,7 @@
 use super::pid::{KernelStack, PidHandle};
 use super::TaskContext;
 use crate::config::TRAP_CONTEXT;
+use crate::fs::File;
 use crate::logger::{info, info2};
 use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
@@ -8,7 +9,7 @@ use crate::task::pid::pid_alloc;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::string::{String, ToString};
 use alloc::sync::{Arc, Weak};
-use alloc::vec::Vec;
+use alloc::vec::{self, Vec};
 use core::cell::RefMut;
 
 /// task control block structure
@@ -32,6 +33,7 @@ pub struct TaskControlBlockInner {
     pub parent: Option<Weak<TaskControlBlock>>, //父进程
     pub children: Vec<Arc<TaskControlBlock>>,   //多个子进程
     pub exit_code: i32, //当进程主动调用exit 或者执行出错被内核杀死, 它的退出码会不同
+    pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>, //文件描述符表
 }
 
 impl TaskControlBlockInner {
@@ -49,6 +51,15 @@ impl TaskControlBlockInner {
 
     pub fn is_zombie(&self) -> bool {
         return self.get_status() == TaskStatus::Zombie;
+    }
+
+    pub fn alloc_fd(&mut self) -> usize {
+        if let Some(fd) = (0..self.fd_table.len()).find(|fd| self.fd_table[*fd].is_none()) {
+            return fd;
+        } else {
+            self.fd_table.push(None);
+            return self.fd_table.len() - 1;
+        }
     }
 }
 
@@ -82,6 +93,14 @@ impl TaskControlBlock {
                     app_name: String::new(),
                     children: Vec::new(),
                     exit_code: 0,
+                    fd_table: vec![
+                        // 0 -> stdin
+                        Some(Arc::new(Stdin)),
+                        // 1 -> stdout
+                        Some(Arc::new(Stdout)),
+                        // 2 -> stderr
+                        Some(Arc::new(Stdout)),
+                    ],
                 })
             },
         };
@@ -95,7 +114,10 @@ impl TaskControlBlock {
             kernel_stack_top,
             trap_handler as usize,
         );
-        info("App name : init_proc , Process id : ", &task_control_block.pid.0);
+        info(
+            "App name : init_proc , Process id : ",
+            &task_control_block.pid.0,
+        );
         task_control_block
     }
 
@@ -111,6 +133,16 @@ impl TaskControlBlock {
         let pid_handle = pid_alloc();
         let kernel_stack = KernelStack::new(&pid_handle);
         let kernel_stack_top = kernel_stack.get_top();
+        // copy fd table
+        let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
+        for fd in parent_inner.fd_table.iter() {
+            if let Some(file) = fd {
+                new_fd_table.push(Some(file.clone()));
+            } else {
+                new_fd_table.push(None);
+            }
+        }
+
         let task_control_block = Arc::new(TaskControlBlock {
             pid: pid_handle,
             kernel_stack,
@@ -121,10 +153,11 @@ impl TaskControlBlock {
                     task_cx: TaskContext::goto_trap_return(kernel_stack_top),
                     task_status: TaskStatus::Ready,
                     memory_set,
-                    app_name:String::new(),
+                    app_name: String::new(),
                     parent: Some(Arc::downgrade(self)),
                     children: Vec::new(),
                     exit_code: 0,
+                    fd_table: new_fd_table,
                 })
             },
         });
@@ -135,7 +168,10 @@ impl TaskControlBlock {
         let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
         trap_cx.kernel_sp = kernel_stack_top;
         info("[KERNEL] Fork parent Process id : ", &self.getpid());
-        info("[KERNEL] Fork new process id : ", &task_control_block.getpid());
+        info(
+            "[KERNEL] Fork new process id : ",
+            &task_control_block.getpid(),
+        );
         return task_control_block;
         // ---- release parent PCB automatically
         // **** release children PCB automatically

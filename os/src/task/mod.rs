@@ -17,6 +17,9 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
+use core::slice::SlicePattern;
+
+use crate::fs::{open_file, OpenFlags};
 use crate::loader::{get_app_data, get_app_data_by_name, get_num_app};
 use crate::logger::{self, info, warn};
 use crate::sync::UPSafeCell;
@@ -34,7 +37,6 @@ pub use processor::{
     current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
     Processor,
 };
-
 
 /// Suspend the current 'Running' task and run the next task in task list.
 pub fn suspend_current_and_run_next() {
@@ -94,14 +96,18 @@ pub fn exit_current_and_run_next(exit_code: i32) {
     inner.memory_set.recycle_data_pages();
     drop(inner);
     drop(task); //最最关键的一步, task drop掉 也就意味着task queue里面没有此task了
-    // we do not have to save task context
+                // we do not have to save task context
     let mut _unused = TaskContext::zero_init();
     schedule(&mut _unused as *mut _);
 }
 
 lazy_static! {
     //Global process that init user shell
-    pub static ref INITPROC:Arc<TaskControlBlock> = Arc::new(TaskControlBlock::new(get_app_data_by_name("initproc").unwrap()));
+    pub static ref INITPROC:Arc<TaskControlBlock> = Arc::new({
+        let inode=open_file("initproc", OpenFlags::RDONLY).unwrap();
+        let v=inode.read_all();
+        TaskControlBlock::new(v.as_slice())
+    });
 }
 ///Add init process to the manager
 pub fn add_initproc() {

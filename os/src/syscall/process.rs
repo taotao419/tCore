@@ -1,4 +1,5 @@
 //! Process management syscalls
+use crate::fs::{open_file, OpenFlags};
 use crate::loader::{get_app_data_by_name, list_apps};
 use crate::mm::{translated_refmut, translated_str};
 use crate::sbi::shutdown;
@@ -48,7 +49,8 @@ pub fn sys_fork() -> isize {
 pub fn sys_exec(path: *const u8) -> isize {
     let token = current_user_token();
     let path = translated_str(token, path);
-    if let Some(data) = get_app_data_by_name(path.as_str()) {
+    if let Some(app_inode) =open_file(path.as_str(),OpenFlags::RDONLY) {
+        let all_data=app_inode.read_all();
         let task = current_task().unwrap();
         task.exec(path.as_str(), data);
         return 0;
