@@ -31,16 +31,15 @@ extern crate bitflags;
 
 #[path = "boards/qemu.rs"]
 mod board;
-mod fs;
-mod drivers;
 
 use core::arch::global_asm;
 
 #[macro_use]
 mod console;
 mod config;
-mod lang_items;
-mod loader;
+mod drivers;
+pub mod fs;
+pub mod lang_items;
 pub mod mm;
 mod logger;
 mod sbi;
@@ -73,13 +72,13 @@ pub fn rust_main() -> ! {
     println!("[kernel] Hello, world!");
     mm::init();
     mm::remap_test();
-    task::add_initproc();
-    println!("after initproc!");
     trap::init();
-    //trap::enable_interrupt();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
-    loader::list_apps();
+    fs::list_apps();
+    task::add_initproc();
+    println!("after initproc!");
+    //trap::enable_interrupt();
     task::run_tasks();
     panic!("Unreachable in rust_main!");
 }

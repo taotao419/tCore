@@ -8,13 +8,14 @@ pub mod console;
 mod lang_items;
 mod syscall;
 
+extern crate alloc;
 #[macro_use]
 extern crate bitflags;
 
 use buddy_system_allocator::LockedHeap;
 use syscall::*;
 
-const USER_HEAP_SIZE: usize = 16384;
+const USER_HEAP_SIZE: usize = 32768;
 
 static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];
 
@@ -37,7 +38,6 @@ pub extern "C" fn _start() -> ! {
     }
     println!("start from main");
     exit(main());
-    panic!("unreachable after sys_exit!");
 }
 
 #[linkage = "weak"]
@@ -72,14 +72,13 @@ pub fn write(fd: usize, buf: &[u8]) -> isize {
     return sys_write(fd, buf);
 }
 
-pub fn exit(exit_code: i32) -> isize {
+pub fn exit(exit_code: i32) -> !{
     println!(
         "\x1b[93m [USER] this is call exit from user lib -- pid : [{}] -- exit_code : [{}] \x1b[0m",
         getpid(),
         exit_code
     );
     sys_exit(exit_code);
-    return 0;
 }
 
 pub fn yield_() -> isize {

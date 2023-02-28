@@ -1,7 +1,7 @@
 use super::pid::{KernelStack, PidHandle};
 use super::TaskContext;
 use crate::config::TRAP_CONTEXT;
-use crate::fs::File;
+use crate::fs::{File, Stdin, Stdout};
 use crate::logger::{info, info2};
 use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
@@ -9,7 +9,8 @@ use crate::task::pid::pid_alloc;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::string::{String, ToString};
 use alloc::sync::{Arc, Weak};
-use alloc::vec::{self, Vec};
+use alloc::vec;
+use alloc::vec::Vec;
 use core::cell::RefMut;
 
 /// task control block structure

@@ -1,0 +1,59 @@
+//!Stdin & Stdout
+
+use crate::{mm::UserBuffer, print, sbi::console_getchar, task::suspend_current_and_run_next};
+
+use super::File;
+
+///Standard input
+pub struct Stdin;
+///Standard output
+pub struct Stdout;
+
+impl File for Stdin {
+    fn readable(&self) -> bool {
+        return true;
+    }
+    fn writable(&self) -> bool {
+        return false;
+    }
+    fn read(&self, mut user_buf: UserBuffer) -> usize {
+        assert_eq!(user_buf.len(), 1);
+        // busy loop
+        let mut c: usize;
+        loop {
+            c = console_getchar();
+            if c == 0 {
+                suspend_current_and_run_next();
+                continue;
+            } else {
+                break;
+            }
+        }
+        let ch = c as u8;
+        unsafe {
+            user_buf.buffers[0].as_mut_ptr().write_volatile(ch);
+        }
+        return 1;
+    }
+    fn write(&self, _user_buf: UserBuffer) -> usize {
+        panic!("Can not write to stdin!")
+    }
+}
+
+impl File for Stdout {
+    fn readable(&self) -> bool {
+        return false;
+    }
+    fn writable(&self) -> bool {
+        return true;
+    }
+    fn read(&self, _user_buf: UserBuffer) -> usize {
+        panic!("Can not read from stdout!");
+    }
+    fn write(&self, user_buf: UserBuffer) -> usize {
+        for buffer in user_buf.buffers.iter() {
+            print!("{}", core::str::from_utf8(*buffer).unwrap());
+        }
+        return user_buf.len();
+    }
+}

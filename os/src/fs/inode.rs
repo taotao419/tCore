@@ -8,6 +8,8 @@ use bitflags::*;
 use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::*;
 
+use super::File;
+
 /// A wrapper around a filesystem inode
 /// to implement File trait atop
 pub struct OSInode {
@@ -37,7 +39,7 @@ impl OSInode {
         let mut buffer = [0u8; 512];
         let mut v: Vec<u8> = Vec::new();
         loop {
-            let len = inner.inode.read_at(inner.offset, &mut buf);
+            let len = inner.inode.read_at(inner.offset, &mut buffer);
             if len == 0 {
                 break;
             }
@@ -57,11 +59,11 @@ lazy_static! {
 
 /// List all files in the filesystems
 pub fn list_apps() {
-    println!("/***** APPS *****/");
+    println!("/**** APPS ****");
     for app in ROOT_INODE.ls() {
         println!("{}", app);
     }
-    println!("/***********/");
+    println!("**************/");
 }
 
 bitflags! {

@@ -1,6 +1,9 @@
+//! File system in os
 mod inode;
+mod stdio;
 
 use crate::mm::UserBuffer;
+use core::fmt::Debug;
 /// File trait
 pub trait File: Send + Sync {
     /// If readable
@@ -13,5 +16,16 @@ pub trait File: Send + Sync {
     fn write(&self, buf: UserBuffer) -> usize;
 }
 
-
 pub use inode::{list_apps, open_file, OSInode, OpenFlags};
+pub use stdio::{Stdin, Stdout};
+
+impl Debug for dyn File + Send + Sync {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "File -- Readable : {} , Writable : {}",
+            self.readable(),
+            self.writable()
+        )
+    }
+}

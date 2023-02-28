@@ -17,10 +17,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use core::slice::SlicePattern;
-
 use crate::fs::{open_file, OpenFlags};
-use crate::loader::{get_app_data, get_app_data_by_name, get_num_app};
 use crate::logger::{self, info, warn};
 use crate::sync::UPSafeCell;
 use crate::timer::get_time_ms;
