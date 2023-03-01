@@ -3,7 +3,10 @@ use crate::{block_cache::get_block_cache, block_dev::BlockDevice};
 use alloc::sync::Arc;
 
 ///A bitmap block
-type BitmapBlock = [u64; 64];
+pub type BitmapBlock = [u64; 64];
+
+
+
 /// Number of bits in a block
 const BLOCK_BITS: usize = BLOCK_SZ * 8;
 pub struct Bitmap {
@@ -68,5 +71,13 @@ impl Bitmap {
     /// Get the max number of allocatable blocks
     pub fn maximum(&self) -> usize {
         self.blocks * BLOCK_BITS
+    }
+    /// Get the bitmapBlock info
+    pub fn read_first_bitmap_block(&self, block_device: &Arc<dyn BlockDevice>) -> BitmapBlock {
+        get_block_cache(self.start_block_id as usize, Arc::clone(block_device))
+            .lock()
+            .read(0, |bitmap_block: & BitmapBlock| {
+                return bitmap_block.clone();
+            })
     }
 }

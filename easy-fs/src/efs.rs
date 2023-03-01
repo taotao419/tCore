@@ -1,4 +1,4 @@
-use crate::{vfs::Inode, BLOCK_SZ};
+use crate::{vfs::Inode, BLOCK_SZ, bitmap::BitmapBlock};
 
 use super::{
     block_cache_sync_all, get_block_cache, Bitmap, BlockDevice, DiskInode, DiskInodeType,
@@ -111,8 +111,8 @@ impl EasyFileSystem {
     pub fn root_inode(efs: &Arc<Mutex<Self>>) -> Inode {
         let block_device = Arc::clone(&efs.lock().block_device);
         // acquire efs lock temporarily
-        let (block_id, block_offset) = efs.lock().get_disk_inode_pos(0);//这里inode_id=0 意味着根目录
-        // release efs lock
+        let (block_id, block_offset) = efs.lock().get_disk_inode_pos(0); //这里inode_id=0 意味着根目录
+                                                                         // release efs lock
         return Inode::new(block_id, block_offset, Arc::clone(efs), block_device);
     }
     /// Get inode by id
@@ -152,5 +152,29 @@ impl EasyFileSystem {
             &self.block_device,
             (block_id - self.data_area_start_block) as usize,
         )
+    }
+
+    /********Only from Testing and explore ****************/
+    /// Open a block device and read out super block
+    pub fn read_super_block(block_device: Arc<dyn BlockDevice>) -> SuperBlock {
+        // 这里最核心的是参数block_id=0, 指定了超级块的编号也就是编号0.
+        get_block_cache(0, Arc::clone(&block_device))
+            .lock()
+            .read(0, |super_block: &SuperBlock| {
+                assert!(super_block.is_valid(), "Error Loading EFS!"); //读出了超级块
+                return SuperBlock::new(
+                    super_block.magic,
+                    super_block.total_blocks,
+                    super_block.inode_bitmap_blocks,
+                    super_block.inode_area_blocks,
+                    super_block.data_bitmap_blocks,
+                    super_block.data_area_blocks,
+                );
+            })
+    }
+
+    /// show inode all data BitmapBLock : [u64; 64]
+    pub fn read_inode_bitmap(&self) -> BitmapBlock {
+      return  self.inode_bitmap.read_first_bitmap_block(&self.block_device);
     }
 }

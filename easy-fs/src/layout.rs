@@ -23,7 +23,7 @@ const INDIRECT2_BOUND: usize = INDIRECT1_BOUND + INODE_INDIRECT2_COUNT;
 /// Super block of a filesystem
 #[repr(C)]
 pub struct SuperBlock {
-    magic: u32,
+    pub magic: u32,
     pub total_blocks: u32,
     pub inode_bitmap_blocks: u32,
     pub inode_area_blocks: u32,
@@ -34,6 +34,7 @@ pub struct SuperBlock {
 impl Debug for SuperBlock {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("SuperBlock")
+            .field("magic", &self.magic)
             .field("total_blocks", &self.total_blocks)
             .field("inode_bitmap_blocks", &self.inode_bitmap_blocks)
             .field("inode_area_blocks", &self.inode_area_blocks)
@@ -44,6 +45,17 @@ impl Debug for SuperBlock {
 }
 
 impl SuperBlock {
+    /// A new SuperBlock
+    pub fn new(magic: u32, total_blocks: u32,inode_bitmap_blocks: u32,inode_area_blocks:u32,data_bitmap_blocks:u32,data_area_blocks:u32) -> Self {
+        Self {
+            magic,
+            total_blocks,
+            inode_bitmap_blocks,
+            inode_area_blocks,
+            data_bitmap_blocks,
+            data_area_blocks
+        }
+    }
     /// Initialize a super block
     pub fn initialize(
         &mut self,

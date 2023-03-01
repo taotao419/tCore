@@ -25,9 +25,39 @@ impl BlockDevice for BlockFile {
 }
 
 fn main() {
-    easy_fs_pack().expect("Error when packing easy-fs!");
+    //easy_fs_pack().expect("Error when packing easy-fs!");
+    easy_fs_read_metadata().expect("Error read fs.img");
 }
 
+fn easy_fs_read_metadata() -> std::io::Result<()> {
+    let block_file = Arc::new(BlockFile(Mutex::new({
+        let f = OpenOptions::new().read(true).write(true).open("fs.img")?;
+        f
+    })));
+    let efs = EasyFileSystem::open(block_file.clone());
+    //Read Super block
+    let root_inode = EasyFileSystem::root_inode(&efs);
+    println!("start read metadata");
+    let super_block = EasyFileSystem::read_super_block(block_file.clone());
+    println!("super block : {:#?}", super_block);
+
+    let first_inode_bitmap = EasyFileSystem::read_inode_bitmap(&efs.lock());
+    println!("first inode bitmap : [");
+    for i in 0..first_inode_bitmap.len() {
+        //he 018 pads with zeros to a width of 18. That width includes 0b (length=2) plus a u16 (length=16) so 18 = 2 + 16. It must come between # and b.
+        println!("{:#066b},", first_inode_bitmap[i]);
+    }
+    println!("]");
+
+    //Read inode bitmap
+    for app in root_inode.ls() {
+        println!("{}", app);
+    }
+
+    return Ok(());
+}
+
+#[allow(dead_code)]
 fn easy_fs_pack() -> std::io::Result<()> {
     let matches = App::new("EasyFileSystem packer")
         .arg(
@@ -103,6 +133,10 @@ fn efs_test() -> std::io::Result<()> {
     let root_inode = EasyFileSystem::root_inode(&efs);
     root_inode.create("filea");
     root_inode.create("fileb");
+    root_inode.create("filec");
+    for i in 0..100 {
+        root_inode.create(format!("file-{:#}",i).as_str());
+    }
 
     for name in root_inode.ls() {
         println!("{}", name);
