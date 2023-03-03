@@ -25,13 +25,16 @@ impl BlockDevice for BlockFile {
 }
 
 fn main() {
-    //easy_fs_pack().expect("Error when packing easy-fs!");
-    easy_fs_read_metadata().expect("Error read fs.img");
+    easy_fs_pack().expect("Error when packing easy-fs!");
+    // easy_fs_read_metadata().expect("Error read fs.img");
 }
 
 fn easy_fs_read_metadata() -> std::io::Result<()> {
     let block_file = Arc::new(BlockFile(Mutex::new({
-        let f = OpenOptions::new().read(true).write(true).open("fs.img")?;
+        let f = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open("fs-simple.img")?;
         f
     })));
     let efs = EasyFileSystem::open(block_file.clone());
@@ -41,6 +44,7 @@ fn easy_fs_read_metadata() -> std::io::Result<()> {
     let super_block = EasyFileSystem::read_super_block(block_file.clone());
     println!("super block : {:#?}", super_block);
 
+    //Read inode bitmap
     let first_inode_bitmap = EasyFileSystem::read_inode_bitmap(&efs.lock());
     println!("first inode bitmap : [");
     for i in 0..first_inode_bitmap.len() {
@@ -49,10 +53,32 @@ fn easy_fs_read_metadata() -> std::io::Result<()> {
     }
     println!("]");
 
-    //Read inode bitmap
-    for app in root_inode.ls() {
-        println!("{}", app);
+    //Read data bitmap
+    let first_data_bitmap = EasyFileSystem::read_data_bitmap(&efs.lock());
+    println!("first data bitmap : [");
+    for i in 0..first_data_bitmap.len() {
+        //he 018 pads with zeros to a width of 18. That width includes 0b (length=2) plus a u16 (length=16) so 18 = 2 + 16. It must come between # and b.
+        println!("{:#066b},", first_data_bitmap[i]);
     }
+    println!("]");
+
+    //Show inode area
+    let inode_areas = EasyFileSystem::read_available_inode_areas(&efs.lock());
+    println!("inode area blocks : {:#?}", inode_areas);
+
+    //Show directory data block
+    let start_data_block_id = super_block.total_blocks - super_block.data_area_blocks;
+    for block_id in start_data_block_id..start_data_block_id + 10 {
+        let data_block = EasyFileSystem::read_data_area(&efs.lock(), block_id as usize);
+        println!("block id [{:#}] data {:#?}", block_id, data_block);
+    }
+
+    //Show filename
+    // list apps
+    for app in root_inode.ls() {
+        let file = root_inode.find(app.as_str()).unwrap();
+        println!("file name :[{}] , size : [{} Bytes]", app,file.get_inode_size());
+    } 
 
     return Ok(());
 }
@@ -134,16 +160,22 @@ fn efs_test() -> std::io::Result<()> {
     root_inode.create("filea");
     root_inode.create("fileb");
     root_inode.create("filec");
-    for i in 0..100 {
-        root_inode.create(format!("file-{:#}",i).as_str());
-    }
+    // for i in 0..100 {
+    //     root_inode.create(format!("file-{:#}", i).as_str());
+    // }
 
     for name in root_inode.ls() {
         println!("{}", name);
     }
     let filea = root_inode.find("filea").unwrap();
+    let fileb = root_inode.find("fileb").unwrap();
+    let filec = root_inode.find("filec").unwrap();
     let greet_str = "Hello, world!";
+    let greet_str1 = "primary NG";
+    let greet_str2 = "sublime text";
     filea.write_at(0, greet_str.as_bytes());
+    fileb.write_at(0, greet_str1.as_bytes());
+    filec.write_at(0, greet_str2.as_bytes());
     let mut buffer = [0u8; 233];
     let len = filea.read_at(0, &mut buffer);
     assert_eq!(greet_str, core::str::from_utf8(&buffer[..len]).unwrap());
@@ -171,14 +203,14 @@ fn efs_test() -> std::io::Result<()> {
         assert_eq!(str, read_str);
     };
 
-    random_str_test(4 * BLOCK_SZ);
-    random_str_test(8 * BLOCK_SZ + BLOCK_SZ / 2);
-    random_str_test(100 * BLOCK_SZ);
-    random_str_test(70 * BLOCK_SZ + BLOCK_SZ / 7);
-    random_str_test((12 + 128) * BLOCK_SZ);
-    random_str_test(400 * BLOCK_SZ);
-    random_str_test(1000 * BLOCK_SZ);
-    random_str_test(2000 * BLOCK_SZ);
+    // random_str_test(4 * BLOCK_SZ);
+    // random_str_test(8 * BLOCK_SZ + BLOCK_SZ / 2);
+    // random_str_test(100 * BLOCK_SZ);
+    // random_str_test(70 * BLOCK_SZ + BLOCK_SZ / 7);
+    // random_str_test((12 + 128) * BLOCK_SZ);
+    // random_str_test(400 * BLOCK_SZ);
+    // random_str_test(1000 * BLOCK_SZ);
+    // random_str_test(2000 * BLOCK_SZ);
 
     Ok(())
 }

@@ -172,7 +172,7 @@ impl Inode {
     pub fn write_at(&self, offset: usize, buf: &[u8]) -> usize {
         let mut fs = self.fs.lock();
         let size = self.modify_disk_inode(|disk_inode| {
-            self.increase_size((offset + buf.len()) as u32, disk_inode, &mut fs);//由于是写回磁盘, 很有可能文件会变大.
+            self.increase_size((offset + buf.len()) as u32, disk_inode, &mut fs); //由于是写回磁盘, 很有可能文件会变大.
             disk_inode.write_at(offset, buf, &self.block_device)
         });
         block_cache_sync_all();
@@ -191,5 +191,12 @@ impl Inode {
             }
         });
         block_cache_sync_all(); //写回真正的磁盘
+    }
+
+    /// Show inode size
+    pub fn get_inode_size(&self) -> u32{
+        self.modify_disk_inode(|disk_inode| {
+            return disk_inode.size
+        })
     }
 }

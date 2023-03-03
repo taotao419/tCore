@@ -43,7 +43,7 @@ impl OSInode {
             if len == 0 {
                 break;
             }
-            inner.offset+=len;
+            inner.offset += len;
             v.extend_from_slice(&buffer[..len]);
         }
         return v;
@@ -61,7 +61,8 @@ lazy_static! {
 pub fn list_apps() {
     println!("/**** APPS ****");
     for app in ROOT_INODE.ls() {
-        println!("{}", app);
+        let file = ROOT_INODE.find(app.as_str()).unwrap();
+        println!("{}    [{} Bytes]", app, file.get_inode_size());
     }
     println!("**************/");
 }

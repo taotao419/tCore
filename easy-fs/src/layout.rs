@@ -46,14 +46,21 @@ impl Debug for SuperBlock {
 
 impl SuperBlock {
     /// A new SuperBlock
-    pub fn new(magic: u32, total_blocks: u32,inode_bitmap_blocks: u32,inode_area_blocks:u32,data_bitmap_blocks:u32,data_area_blocks:u32) -> Self {
+    pub fn new(
+        magic: u32,
+        total_blocks: u32,
+        inode_bitmap_blocks: u32,
+        inode_area_blocks: u32,
+        data_bitmap_blocks: u32,
+        data_area_blocks: u32,
+    ) -> Self {
         Self {
             magic,
             total_blocks,
             inode_bitmap_blocks,
             inode_area_blocks,
             data_bitmap_blocks,
-            data_area_blocks
+            data_area_blocks,
         }
     }
     /// Initialize a super block
@@ -82,7 +89,7 @@ impl SuperBlock {
 }
 
 /// Type of a disk inode
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum DiskInodeType {
     File,
     Directory,
@@ -94,6 +101,7 @@ type IndirectBlock = [u32; BLOCK_SZ / 4];
 type DataBlock = [u8; BLOCK_SZ];
 ///A disk inode
 #[repr(C)]
+#[derive(Copy, Clone, Debug)]
 pub struct DiskInode {
     pub size: u32,
     pub direct: [u32; INODE_DIRECT_COUNT],
@@ -420,6 +428,7 @@ impl DiskInode {
 
 /// A directory entry
 #[repr(C)]
+#[derive(Debug)]
 pub struct DirEntry {
     name: [u8; NAME_LENGTH_LIMIT + 1],
     inode_number: u32,
@@ -453,11 +462,11 @@ impl DirEntry {
     }
     /// Get name of the entry
     pub fn name(&self) -> &str {
-        let len = (0usize..).find(|i| self.name[*i] == 0).unwrap();//找到name这个数组里面元素0的位置. 此位置即是字符串结束位
-        return core::str::from_utf8(&self.name[..len]).unwrap();//byte[] ==> &str
+        let len = (0usize..).find(|i| self.name[*i] == 0).unwrap(); //找到name这个数组里面元素0的位置. 此位置即是字符串结束位
+        return core::str::from_utf8(&self.name[..len]).unwrap(); //byte[] ==> &str
     }
     /// Get inode number of the entry
-    pub fn inode_number(&self) ->u32{
+    pub fn inode_number(&self) -> u32 {
         return self.inode_number;
     }
 }

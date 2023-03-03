@@ -1,10 +1,10 @@
-use crate::{vfs::Inode, BLOCK_SZ, bitmap::BitmapBlock};
+use crate::{bitmap::BitmapBlock, vfs::Inode, BLOCK_SZ};
 
 use super::{
     block_cache_sync_all, get_block_cache, Bitmap, BlockDevice, DiskInode, DiskInodeType,
     SuperBlock,
 };
-use alloc::sync::Arc;
+use alloc::{sync::Arc, vec::Vec};
 use spin::Mutex;
 
 ///An easy file system on block
@@ -175,6 +175,43 @@ impl EasyFileSystem {
 
     /// show inode all data BitmapBLock : [u64; 64]
     pub fn read_inode_bitmap(&self) -> BitmapBlock {
-      return  self.inode_bitmap.read_first_bitmap_block(&self.block_device);
+        return self
+            .inode_bitmap
+            .read_first_bitmap_block(&self.block_device);
+    }
+
+    /// show data all data BitmapBLock : [u64; 64]
+    pub fn read_data_bitmap(&self) -> BitmapBlock {
+        return self.data_bitmap.read_first_bitmap_block(&self.block_device);
+    }
+
+    /// show inode area
+    /// TODO : add new input param : inode_area_blocks  
+    /// TODO :  short-circuit when disk_inode size is zero
+    pub fn read_available_inode_areas(&self) -> Vec<DiskInode> {
+        let mut v = Vec::new();
+        for i in 0..10 {
+            // loop 10 times, show first 10 inode area block
+            let (block_id, inode_offset) = self.get_disk_inode_pos(i);
+            get_block_cache(block_id as usize, Arc::clone(&self.block_device))
+                .lock()
+                .read(inode_offset, |disk_inode: &DiskInode| {
+                    if disk_inode.size != 0 {
+                        // only add not empty inode area
+                        v.push(disk_inode.clone());
+                    }
+                });
+        }
+        return v;
+    }
+
+    /// show data area by blockId
+    pub fn read_data_area(&self, data_block_id: usize) -> DataBlock {
+        let data_block = get_block_cache(data_block_id, Arc::clone(&self.block_device))
+            .lock()
+            .read(0, |data_block: &DataBlock| {
+                return data_block.clone();
+            });
+        return data_block;
     }
 }
