@@ -18,7 +18,9 @@ pub struct EasyFileSystem {
     inode_area_start_block: u32,
     data_area_start_block: u32,
 }
-
+/// A indirect block
+type IndirectBlock = [u32; BLOCK_SZ / 4];
+/// A data block
 type DataBlock = [u8; BLOCK_SZ];
 /// An easy fs over a block device
 impl EasyFileSystem {
@@ -213,5 +215,14 @@ impl EasyFileSystem {
                 return data_block.clone();
             });
         return data_block;
+    }
+    /// show indirect block by blockId
+    pub fn read_indirect_block(&self, indirect_block_id: usize) -> IndirectBlock {
+        let indirect_block = get_block_cache(indirect_block_id, Arc::clone(&self.block_device))
+            .lock()
+            .read(0, |indirect_block: &IndirectBlock| {
+                return indirect_block.clone();
+            });
+        return indirect_block;
     }
 }

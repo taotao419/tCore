@@ -25,8 +25,8 @@ impl BlockDevice for BlockFile {
 }
 
 fn main() {
-    easy_fs_pack().expect("Error when packing easy-fs!");
-    // easy_fs_read_metadata().expect("Error read fs.img");
+    // easy_fs_pack().expect("Error when packing easy-fs!");
+    easy_fs_read_metadata().expect("Error read fs.img");
 }
 
 fn easy_fs_read_metadata() -> std::io::Result<()> {
@@ -34,7 +34,7 @@ fn easy_fs_read_metadata() -> std::io::Result<()> {
         let f = OpenOptions::new()
             .read(true)
             .write(true)
-            .open("fs-simple.img")?;
+            .open("fs.img")?;
         f
     })));
     let efs = EasyFileSystem::open(block_file.clone());
@@ -67,11 +67,16 @@ fn easy_fs_read_metadata() -> std::io::Result<()> {
     println!("inode area blocks : {:#?}", inode_areas);
 
     //Show directory data block
-    let start_data_block_id = super_block.total_blocks - super_block.data_area_blocks;
-    for block_id in start_data_block_id..start_data_block_id + 10 {
+    // let start_data_block_id = super_block.total_blocks - super_block.data_area_blocks;
+    for block_id in [1704,1705,1706,1707]{
         let data_block = EasyFileSystem::read_data_area(&efs.lock(), block_id as usize);
         println!("block id [{:#}] data {:#?}", block_id, data_block);
     }
+    // Specified [block id 1191] indirect2
+    // for block_id in [1192,1321,1450,1579]{
+    // let indirect_block = EasyFileSystem::read_indirect_block(&efs.lock(), block_id as usize);
+    //     println!("block id [{:#}] data {:#?}", block_id, indirect_block);
+    // }
 
     //Show filename
     // list apps
