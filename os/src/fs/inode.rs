@@ -10,6 +10,7 @@ use lazy_static::*;
 
 use super::File;
 
+
 /// A wrapper around a filesystem inode
 /// to implement File trait atop
 pub struct OSInode {
@@ -57,9 +58,9 @@ lazy_static! {
     };
 }
 
-/// List all files in the filesystems
-pub fn list_apps() {
-    println!("/**** APPS ****");
+/// List all files in the file systems
+pub fn list_files() {
+    println!("/**** Files ****");
     for app in ROOT_INODE.ls() {
         let file = ROOT_INODE.find(app.as_str()).unwrap();
         println!("{}    [{} Bytes]", app, file.get_inode_size());

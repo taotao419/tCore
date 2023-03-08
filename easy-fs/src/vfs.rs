@@ -64,19 +64,32 @@ impl Inode {
         return None;
     }
     /// Find inode under current inode by name
-    pub fn find(&self, name: &str) -> Option<Arc<Inode>> {
+    pub fn find(&self, path: &str) -> Option<Arc<Inode>> {
         let fs = self.fs.lock();
-        self.read_disk_inode(|disk_inode| {
-            self.find_inode_id(name, disk_inode).map(|inode_id| {
-                let (block_id, block_offset) = fs.get_disk_inode_pos(inode_id);
-                Arc::new(Self::new(
-                    block_id,
-                    block_offset,
-                    self.fs.clone(),
-                    self.block_device.clone(),
-                ))
-            })
-        })
+        let mut block_id = self.block_id as u32;
+        let mut block_offset = self.block_offset;
+        for name in path.split('/').filter(|s| !s.is_empty()) {
+            let inode_id = get_block_cache(block_id as usize, self.block_device.clone())
+                .lock()
+                .read(block_offset, |disk_inode: &DiskInode| {
+                    if disk_inode.is_file() {
+                        return None;
+                    }
+                    return self.find_inode_id(name, disk_inode);
+                });
+            if inode_id.is_none() {
+                return None;
+            }
+            //进入下一层文件夹 循环修改block_id与block_offset
+            (block_id, block_offset) = fs.get_disk_inode_pos(inode_id.unwrap());
+        }
+
+        return Some(Arc::new(Self::new(
+            block_id,
+            block_offset,
+            self.fs.clone(),
+            self.block_device.clone(),
+        )));
     }
     /// Increase the size of a disk inode
     fn increase_size(
@@ -96,7 +109,7 @@ impl Inode {
         disk_inode.increase_size(new_size, v, &self.block_device);
     }
     /// Create inode under current inode by name
-    pub fn create(&self, name: &str) -> Option<Arc<Inode>> {
+    pub fn create_inode(&self, name: &str, inode_type: DiskInodeType) -> Option<Arc<Inode>> {
         let mut fs = self.fs.lock();
         let op = |root_inode: &DiskInode| {
             // assert it is a directory
@@ -116,7 +129,7 @@ impl Inode {
         get_block_cache(new_inode_block_id as usize, Arc::clone(&self.block_device))
             .lock()
             .modify(new_inode_block_offset, |new_inode: &mut DiskInode| {
-                new_inode.initialize(DiskInodeType::File); //给待创建新文件 分配一个新的Inode
+                new_inode.initialize(inode_type); //给待创建新文件 分配一个新的Inode
             });
         self.modify_disk_inode(|root_inode| {
             // append file in the dirent
@@ -146,12 +159,27 @@ impl Inode {
         // release efs lock automatically by compiler
     }
 
+    /// Create regular file under current inode
+    pub fn create(&self, name: &str) -> Option<Arc<Inode>> {
+        return self.create_inode(name, DiskInodeType::File);
+    }
+
+    /// Create directory under current inode
+    pub fn create_dir(&self, name: &str) -> Option<Arc<Inode>> {
+        return self.create_inode(name, DiskInodeType::Directory);
+    }
+
     /// List inodes under current inode
     pub fn ls(&self) -> Vec<String> {
         let _fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| {
             let file_count = (disk_inode.size as usize) / DIRENT_SZ; //通过读磁盘块里内容的大小, 得知里面有几个文件. 每个文件Metadata大小固定是32
             let mut v: Vec<String> = Vec::new();
+            if disk_inode.is_file() {
+                //如果是常规文件(不是文件夹) 就直接返回一个空Vec. 因为文件还是文件夹都可以调用ls方法.
+                return v;
+            }
+
             for i in 0..file_count {
                 let mut dirent = DirEntry::empty();
                 assert_eq!(
@@ -172,6 +200,8 @@ impl Inode {
     pub fn write_at(&self, offset: usize, buf: &[u8]) -> usize {
         let mut fs = self.fs.lock();
         let size = self.modify_disk_inode(|disk_inode| {
+            assert!(disk_inode.is_file());
+
             self.increase_size((offset + buf.len()) as u32, disk_inode, &mut fs); //由于是写回磁盘, 很有可能文件会变大.
             disk_inode.write_at(offset, buf, &self.block_device)
         });
@@ -183,6 +213,8 @@ impl Inode {
     pub fn clear(&self) {
         let mut fs = self.fs.lock();
         self.modify_disk_inode(|disk_inode| {
+            assert!(disk_inode.is_file());
+
             let size = disk_inode.size;
             let data_blocks_dealloc = disk_inode.clear_size(&self.block_device); //回收所有的块的编号Vec
             assert!(data_blocks_dealloc.len() == DiskInode::total_blocks(size) as usize);
@@ -194,9 +226,7 @@ impl Inode {
     }
 
     /// Show inode size
-    pub fn get_inode_size(&self) -> u32{
-        self.modify_disk_inode(|disk_inode| {
-            return disk_inode.size
-        })
+    pub fn get_inode_size(&self) -> u32 {
+        self.modify_disk_inode(|disk_inode| return disk_inode.size)
     }
 }

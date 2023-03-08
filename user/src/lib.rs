@@ -93,6 +93,10 @@ pub fn getpid() -> isize {
     sys_getpid()
 }
 
+pub fn chdir(path: &str) ->isize {
+    return sys_chdir(path)
+}
+
 pub fn fork() -> isize {
     sys_fork()
 }

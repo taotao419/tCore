@@ -27,6 +27,12 @@ pub fn main() -> i32 {
             LF | CR => {
                 //判断回车之后
                 println!("");
+                if line.eq_ignore_ascii_case("cd"){
+                    line.push('\0');
+                    println!("change dir");
+                    exec(line.as_str());
+                    line.clear();//回车意味着提示符清空
+                }
                 if !line.is_empty() {
                     line.push('\0');
                     let pid = fork();

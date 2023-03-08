@@ -1,5 +1,5 @@
 use clap::{App, Arg};
-use easy_fs::{BlockDevice, EasyFileSystem};
+use easy_fs::{BlockDevice, EasyFileSystem, Inode};
 use std::fs::{read_dir, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::sync::{Arc, Mutex};
@@ -25,16 +25,13 @@ impl BlockDevice for BlockFile {
 }
 
 fn main() {
-    // easy_fs_pack().expect("Error when packing easy-fs!");
-    easy_fs_read_metadata().expect("Error read fs.img");
+    easy_fs_pack().expect("Error when packing easy-fs!");
+    //easy_fs_read_metadata().expect("Error read fs.img");
 }
 
 fn easy_fs_read_metadata() -> std::io::Result<()> {
     let block_file = Arc::new(BlockFile(Mutex::new({
-        let f = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open("fs.img")?;
+        let f = OpenOptions::new().read(true).write(true).open("fs.img")?;
         f
     })));
     let efs = EasyFileSystem::open(block_file.clone());
@@ -68,7 +65,7 @@ fn easy_fs_read_metadata() -> std::io::Result<()> {
 
     //Show directory data block
     // let start_data_block_id = super_block.total_blocks - super_block.data_area_blocks;
-    for block_id in [1704,1705,1706,1707]{
+    for block_id in [1704, 1705, 1706, 1707] {
         let data_block = EasyFileSystem::read_data_area(&efs.lock(), block_id as usize);
         println!("block id [{:#}] data {:#?}", block_id, data_block);
     }
@@ -82,10 +79,28 @@ fn easy_fs_read_metadata() -> std::io::Result<()> {
     // list apps
     for app in root_inode.ls() {
         let file = root_inode.find(app.as_str()).unwrap();
-        println!("file name :[{}] , size : [{} Bytes]", app,file.get_inode_size());
-    } 
+        println!(
+            "file name :[{}] , size : [{} Bytes]",
+            app,
+            file.get_inode_size()
+        );
+    }
 
     return Ok(());
+}
+
+fn tree(inode: &Arc<Inode>, name: &str, depth: usize) {
+    if depth > 0 {
+        print!("|")
+    }
+    for _ in 0..depth {
+        print!("-");
+    }
+    println!("{}", name);
+    for name in inode.ls() {
+        let child = inode.find(&name).unwrap();
+        tree(&child, &name, depth + 1);
+    }
 }
 
 #[allow(dead_code)]
@@ -144,7 +159,10 @@ fn easy_fs_pack() -> std::io::Result<()> {
     for app in root_inode.ls() {
         println!("{}", app);
     }
-
+    // add dir A
+    let dir_a = root_inode.create_dir("dirA").unwrap();
+    dir_a.create("filec");
+    
     Ok(())
 }
 
@@ -216,6 +234,37 @@ fn efs_test() -> std::io::Result<()> {
     // random_str_test(400 * BLOCK_SZ);
     // random_str_test(1000 * BLOCK_SZ);
     // random_str_test(2000 * BLOCK_SZ);
+
+    Ok(())
+}
+
+#[test]
+fn efs_dir_test() -> std::io::Result<()> {
+    let block_file = Arc::new(BlockFile(Mutex::new({
+        let f = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open("target/fs.img")?;
+        f.set_len(8192 * 512).unwrap();
+        f
+    })));
+    EasyFileSystem::create(block_file.clone(), 4096, 1);
+    let efs = EasyFileSystem::open(block_file.clone());
+    let root = Arc::new(EasyFileSystem::root_inode(&efs));
+    root.create("filea");
+    root.create("fileb");
+
+    let dir_a = root.create_dir("dira").unwrap();
+    let file_c = dir_a.create("filec").unwrap();
+    let dir_b = dir_a.create_dir("dirb").unwrap();
+    let file_d = dir_b.create("filed").unwrap();
+    tree(&root, "/", 0);
+
+    let file_c_content = "3333333";
+    let file_d_content = "4444444444444444444";
+    file_c.write_at(0, file_c_content.as_bytes());
+    file_d.write_at(0, file_d_content.as_bytes());
 
     Ok(())
 }

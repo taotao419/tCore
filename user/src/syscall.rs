@@ -4,6 +4,7 @@ const SYSCALL_OPEN: usize = 56;
 const SYSCALL_CLOSE: usize = 57;
 const SYSCALL_READ: usize = 63;
 const SYSCALL_WRITE: usize = 64;
+const SYSCALL_CHDIR: usize = 80;
 const SYSCALL_EXIT: usize = 93;
 const SYSCALL_YIELD: usize = 124;
 const SYSCALL_REBOOT: usize = 142;
@@ -76,6 +77,10 @@ pub fn sys_fork() -> isize {
 
 pub fn sys_exec(path: &str) -> isize {
     syscall(SYSCALL_EXEC, [path.as_ptr() as usize, 0, 0])
+}
+
+pub fn sys_chdir(path: &str) -> isize {
+    syscall(SYSCALL_CHDIR, [path.as_ptr() as usize, 0, 0])
 }
 
 //pid是一个只读变量, exit_code 会返回-1 / -2 或者结束子进程的pid 所以前面要加*mut
