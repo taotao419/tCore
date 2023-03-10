@@ -4,6 +4,7 @@ const SYSCALL_OPEN: usize = 56;
 const SYSCALL_CLOSE: usize = 57;
 const SYSCALL_READ: usize = 63;
 const SYSCALL_WRITE: usize = 64;
+const SYSCALL_GET_CWD: usize = 79;
 const SYSCALL_CHDIR: usize = 80;
 const SYSCALL_EXIT: usize = 93;
 const SYSCALL_YIELD: usize = 124;
@@ -61,6 +62,10 @@ pub fn sys_exit(exit_code: i32) -> ! {
 
 pub fn sys_yield() -> isize {
     syscall(SYSCALL_YIELD, [0, 0, 0])
+}
+
+pub fn sys_get_cwd() -> isize {
+    syscall(SYSCALL_GET_CWD, [0, 0, 0])
 }
 
 pub fn sys_get_time() -> isize {

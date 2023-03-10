@@ -160,8 +160,15 @@ fn easy_fs_pack() -> std::io::Result<()> {
         println!("{}", app);
     }
     // add dir A
-    let dir_a = root_inode.create_dir("dirA").unwrap();
-    dir_a.create("filec");
+    let dir_a = root_inode.create_dir("dira").unwrap();
+    let file_c = dir_a.create("filec").unwrap();
+    let dir_b = dir_a.create_dir("dirb").unwrap();
+    let file_d = dir_b.create("filed").unwrap();
+
+    let file_c_content = "3333333";
+    let file_d_content = "4444444444444444444";
+    file_c.write_at(0, file_c_content.as_bytes());
+    file_d.write_at(0, file_d_content.as_bytes());
     
     Ok(())
 }

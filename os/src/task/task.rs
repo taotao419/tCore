@@ -35,7 +35,7 @@ pub struct TaskControlBlockInner {
     pub children: Vec<Arc<TaskControlBlock>>,   //多个子进程
     pub exit_code: i32, //当进程主动调用exit 或者执行出错被内核杀死, 它的退出码会不同
     pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>, //文件描述符表
-    pub working_dir:String, //当前工作目录
+    pub working_dir: String, //当前工作目录
 }
 
 impl TaskControlBlockInner {
@@ -103,7 +103,7 @@ impl TaskControlBlock {
                         // 2 -> stderr
                         Some(Arc::new(Stdout)),
                     ],
-                    working_dir:String::from("/")
+                    working_dir: String::from("/"),
                 })
             },
         };
@@ -145,8 +145,8 @@ impl TaskControlBlock {
                 new_fd_table.push(None);
             }
         }
-        let working_dir=parent_inner.working_dir.clone();
-
+        let working_dir = parent_inner.working_dir.clone();
+        println!("[KERNEL] Fork parent working dir : {}", &working_dir);
         let task_control_block = Arc::new(TaskControlBlock {
             pid: pid_handle,
             kernel_stack,
@@ -162,7 +162,7 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     fd_table: new_fd_table,
-                    working_dir
+                    working_dir,
                 })
             },
         });
@@ -209,6 +209,10 @@ impl TaskControlBlock {
 
     pub fn getpid(&self) -> usize {
         return self.pid.0;
+    }
+
+    pub fn get_working_dir(&self) -> String {
+        return self.inner_exclusive_access().working_dir.clone();
     }
 }
 #[derive(Copy, Clone, PartialEq, Debug)]

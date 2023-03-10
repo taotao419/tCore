@@ -1,7 +1,7 @@
 use crate::drivers::BLOCK_DEVICE;
 use crate::mm::UserBuffer;
 use crate::sync::UPSafeCell;
-use alloc::sync::Arc;
+use alloc::{sync::Arc, borrow::ToOwned};
 use alloc::vec::Vec;
 use bitflags::*;
 
@@ -59,11 +59,19 @@ lazy_static! {
 }
 
 /// List all files in the file systems
-pub fn list_files() {
+pub fn list_files(path: &str) {
     println!("/**** Files ****");
-    for app in ROOT_INODE.ls() {
-        let file = ROOT_INODE.find(app.as_str()).unwrap();
-        println!("{}    [{} Bytes]", app, file.get_inode_size());
+    for fileName in ROOT_INODE.find(path).unwrap().ls() {
+        let mut path_file=path.to_owned();
+        if path.ends_with('/'){
+            path_file.push_str(fileName.as_str());
+        }else{
+            path_file.push_str("/");
+            path_file.push_str(fileName.as_str());
+        }
+       
+        let file = ROOT_INODE.find(path_file.as_str()).unwrap();
+        println!("{}    [{} Bytes]", fileName, file.get_inode_size());
     }
     println!("**************/");
 }

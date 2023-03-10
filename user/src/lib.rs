@@ -57,10 +57,10 @@ bitflags! {
 }
 
 pub fn open(path: &str, flags: OpenFlags) -> isize {
-    return sys_open(path,flags.bits);
+    return sys_open(path, flags.bits);
 }
 
-pub fn close(fd:usize)->isize{
+pub fn close(fd: usize) -> isize {
     return sys_close(fd);
 }
 
@@ -72,7 +72,7 @@ pub fn write(fd: usize, buf: &[u8]) -> isize {
     return sys_write(fd, buf);
 }
 
-pub fn exit(exit_code: i32) -> !{
+pub fn exit(exit_code: i32) -> ! {
     println!(
         "\x1b[93m [USER] this is call exit from user lib -- pid : [{}] -- exit_code : [{}] \x1b[0m",
         getpid(),
@@ -93,8 +93,12 @@ pub fn getpid() -> isize {
     sys_getpid()
 }
 
-pub fn chdir(path: &str) ->isize {
-    return sys_chdir(path)
+pub fn get_cwd() -> isize {
+    sys_get_cwd()
+}
+
+pub fn chdir(path: &str) -> isize {
+    return sys_chdir(path);
 }
 
 pub fn fork() -> isize {

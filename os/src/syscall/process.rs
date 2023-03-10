@@ -30,6 +30,12 @@ pub fn sys_getpid() -> isize {
     current_task().unwrap().pid.0 as isize
 }
 
+pub fn sys_getcwd() -> isize {
+    let current_task = current_task().unwrap();
+    println!("{}", current_task.inner_exclusive_access().working_dir);
+    return 0;
+}
+
 pub fn sys_chdir(path: *const u8) -> isize {
     let current_task = current_task().unwrap();
     let token = current_user_token();
@@ -104,7 +110,8 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 }
 
 pub fn sys_list_apps() -> isize {
-    list_files();
+    let path = current_task().unwrap().get_working_dir();
+    list_files(path.as_str());
     return 0;
 }
 
