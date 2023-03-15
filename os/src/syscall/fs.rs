@@ -1,73 +1,92 @@
 //! File and filesystem-related syscalls
 
-use crate::fs::{open_file, OpenFlags};
-use crate::mm::{translated_byte_buffer, translated_str, UserBuffer};
-use crate::task::{current_user_token, suspend_current_and_run_next, current_task};
+use crate::fs::{make_pipe, open_file, OpenFlags};
+use crate::mm::{translated_byte_buffer, translated_refmut, translated_str, UserBuffer};
+use crate::task::{current_task, current_user_token, suspend_current_and_run_next};
 
 /// write buf of length `len`  to a file with `fd`
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
-    let token=current_user_token();
-    let task=current_task().unwrap();
-    let inner=task.inner_exclusive_access();
-    if fd>=inner.fd_table.len(){
+    let token = current_user_token();
+    let task = current_task().unwrap();
+    let inner = task.inner_exclusive_access();
+    if fd >= inner.fd_table.len() {
         return -1;
     }
-    if let Some(file)=&inner.fd_table[fd]{
-        if !file.writable(){
+    if let Some(file) = &inner.fd_table[fd] {
+        if !file.writable() {
             return -1;
         }
-        let file=file.clone();
+        let file = file.clone();
         // release current task TCB manually to avoid multi-borrow
         drop(inner);
         file.write(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
-    }else{
+    } else {
         return -1;
     }
 }
 
 pub fn sys_read(fd: usize, buf: *const u8, len: usize) -> isize {
-    let token=current_user_token();
-    let task=current_task().unwrap();
-    let inner=task.inner_exclusive_access();
-    if fd>=inner.fd_table.len(){
+    let token = current_user_token();
+    let task = current_task().unwrap();
+    let inner = task.inner_exclusive_access();
+    if fd >= inner.fd_table.len() {
         return -1;
-    } 
-    if let Some(file)=&inner.fd_table[fd]{
+    }
+    if let Some(file) = &inner.fd_table[fd] {
         let file = file.clone();
-        if !file.readable(){
+        if !file.readable() {
             return -1;
         }
         // release current task TCB manually to avoid multi-borrow
         drop(inner);
         file.read(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
-    }else{
+    } else {
         return -1;
     }
 }
 
-pub fn sys_open(path: *const u8, flags:u32)->isize{
-    let task=current_task().unwrap();
-    let token=current_user_token();
-    let path =translated_str(token, path);
-    if let Some(inode)=open_file(path.as_str(),OpenFlags::from_bits(flags).unwrap()){
-        let mut inner=task.inner_exclusive_access();
-        let fd=inner.alloc_fd();
-        inner.fd_table[fd]=Some(inode);
+pub fn sys_open(path: *const u8, flags: u32) -> isize {
+    let task = current_task().unwrap();
+    let token = current_user_token();
+    let path = translated_str(token, path);
+    if let Some(inode) = open_file(path.as_str(), OpenFlags::from_bits(flags).unwrap()) {
+        let mut inner = task.inner_exclusive_access();
+        let fd = inner.alloc_fd();
+        inner.fd_table[fd] = Some(inode);
         fd as isize
-    }else{
-        return -1
+    } else {
+        return -1;
     }
 }
 
-pub fn sys_close(fd:usize)->isize{
-    let task=current_task().unwrap();
-    let mut inner=task.inner_exclusive_access();
-    if fd>=inner.fd_table.len(){
+pub fn sys_close(fd: usize) -> isize {
+    let task = current_task().unwrap();
+    let mut inner = task.inner_exclusive_access();
+    if fd >= inner.fd_table.len() {
         return -1;
     }
-    if inner.fd_table[fd].is_none(){
+    if inner.fd_table[fd].is_none() {
         return -1;
     }
     inner.fd_table[fd].take();
+    return 0;
+}
+
+pub fn sys_pipe(pipe: *mut usize) -> isize {
+    let task = current_task().unwrap();
+    let token = current_user_token();
+    let mut inner = task.inner_exclusive_access();
+    let (pipe_read, pipe_write) = make_pipe();
+    let read_fd = inner.alloc_fd();
+    inner.fd_table[read_fd] = Some(pipe_read);
+    let write_fd = inner.alloc_fd();
+    inner.fd_table[write_fd] = Some(pipe_write);
+    //这里pipe 同时也是user app的一个指针, 指向的一个pipe数组. 由于内核层与用户层分属两套不同的内存地址空间.
+    //需要先拿到用户层app的token , 内核层才能翻译出用户层这个指针具体在哪里. 
+    //本质上下面两行代码就是
+    // pipe[0] = read_fd;
+    // pipe[1] = write_fd;
+    *translated_refmut(token, pipe) = read_fd;
+    *translated_refmut(token, unsafe { pipe.add(1) }) = write_fd;
     return 0;
 }
