@@ -181,15 +181,25 @@ pub fn translated_str(token: usize, ptr: *const u8) -> String {
             .get_mut());
         if ch == 0 {
             break;
-        } else {
+        }
             string.push(ch as char);
             va += 1;
         }
-    }
     return string;
 }
 
+///translate a generic through page table and return a const reference
+/// 传入用户内存空间的token, 和对应用户APP的指针(指向的地址当然是虚拟地址), 作为操作系统必然需要把指针指向的虚拟的位置, 解释成物理地址, 并变成对应的T type类型的实例(只读)
+pub fn translated_ref<T>(token: usize, ptr: *const T) -> &'static T {
+    let page_table = PageTable::from_token(token);
+    page_table
+        .translate_va(VirtAddr::from(ptr as usize))
+        .unwrap()
+        .get_ref()
+}
+
 ///translate a generic through page table and return a mutable reference
+/// 同上, 只是变成T type类型的实例(可读可写)
 pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
     //println!("into translated_refmut!");
     let page_table = PageTable::from_token(token);

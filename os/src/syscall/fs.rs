@@ -3,6 +3,7 @@
 use crate::fs::{make_pipe, open_file, OpenFlags};
 use crate::mm::{translated_byte_buffer, translated_refmut, translated_str, UserBuffer};
 use crate::task::{current_task, current_user_token, suspend_current_and_run_next};
+use alloc::sync::Arc;
 
 /// write buf of length `len`  to a file with `fd`
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
@@ -82,11 +83,27 @@ pub fn sys_pipe(pipe: *mut usize) -> isize {
     let write_fd = inner.alloc_fd();
     inner.fd_table[write_fd] = Some(pipe_write);
     //这里pipe 同时也是user app的一个指针, 指向的一个pipe数组. 由于内核层与用户层分属两套不同的内存地址空间.
-    //需要先拿到用户层app的token , 内核层才能翻译出用户层这个指针具体在哪里. 
+    //需要先拿到用户层app的token , 内核层才能翻译出用户层这个指针具体在哪里.
     //本质上下面两行代码就是
     // pipe[0] = read_fd;
     // pipe[1] = write_fd;
     *translated_refmut(token, pipe) = read_fd;
     *translated_refmut(token, unsafe { pipe.add(1) }) = write_fd;
     return 0;
+}
+
+pub fn sys_dup(fd: usize) -> isize {
+    let task = current_task().unwrap();
+    let mut inner = task.inner_exclusive_access();
+    // fd大于文件描述符表的长度 肯定是错的
+    if fd >= inner.fd_table.len() {
+        return -1;
+    }
+    // 文件描述符表里fd索引的格子为空 肯定也是错的
+    if inner.fd_table[fd].is_none() {
+        return -1;
+    }
+    let new_fd = inner.alloc_fd(); // 申请一个新的文件描述符
+    inner.fd_table[new_fd] = Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap())); // 新的文件描述符指向的还是老的文件描述符指向的文件
+    return new_fd as isize;
 }

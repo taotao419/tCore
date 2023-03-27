@@ -1,8 +1,8 @@
 //!Stdin & Stdout
-
-use crate::{mm::UserBuffer, print, sbi::console_getchar, task::suspend_current_and_run_next};
-
 use super::File;
+use crate::mm::UserBuffer;
+use crate::sbi::console_getchar;
+use crate::task::suspend_current_and_run_next;
 
 ///Standard input
 pub struct Stdin;
@@ -36,7 +36,7 @@ impl File for Stdin {
         return 1;
     }
     fn write(&self, _user_buf: UserBuffer) -> usize {
-        panic!("Can not write to stdin!")
+        panic!("Cannot write to stdin!");
     }
 }
 

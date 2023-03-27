@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use user_lib::{fork, pipe, close,read,write};
+use user_lib::{fork, pipe, close,read,wait,write};
 
 #[macro_use]
 extern crate user_lib;

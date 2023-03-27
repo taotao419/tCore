@@ -1,13 +1,15 @@
 //! Process management syscalls
 use crate::fs::{list_files, open_file, OpenFlags};
-use crate::mm::{translated_refmut, translated_str};
+use crate::mm::{translated_ref, translated_refmut, translated_str};
 use crate::sbi::shutdown;
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
     suspend_current_and_run_next,
 };
 use crate::timer::get_time_ms;
+use alloc::string::String;
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 
 /// task exits and submit an exit code
 pub fn sys_exit(exit_code: i32) -> ! {
@@ -59,14 +61,32 @@ pub fn sys_fork() -> isize {
     return (new_pid as isize);
 }
 
-pub fn sys_exec(path: *const u8) -> isize {
+/// 这里args 指向命令行参数字符串其实地址数组的一个位置
+/// 假设传入了三个字符串 "arg1" "arg2" "arg3"
+/// ex : args ptr -> |a|r|g|1
+///                  |a|r|g|2
+///                  |a|r|g|3
+pub fn sys_exec(path: *const u8, mut args: *const usize) -> isize {
     let token = current_user_token();
     let path = translated_str(token, path);
+    let mut args_vec: Vec<String> = Vec::new();
+    loop {
+        let arg_str_ptr = *translated_ref(token, args); //args现在指向arg1字符串的数组位置, 但是这个位置是虚拟地址, OS在内核层还需要翻译成物理地址,这里只是读出字符串头字符的指针来.
+        if arg_str_ptr == 0 { //如果读出的字符串是0, 说明后面再没有参数了
+            break;
+        }
+        args_vec.push(translated_str(token, arg_str_ptr as *const u8)); //OS 真正从物理地址读出参数字符串 并放入Vec
+        unsafe {
+            args = args.add(1); //指针下移一位, 指向下一个参数字符串
+        }
+    }
+
     if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
         let all_data = app_inode.read_all();
         let task = current_task().unwrap();
-        task.exec(path.as_str(), all_data.as_slice());
-        return 0;
+        let argc = args_vec.len();
+        task.exec(path.as_str(),all_data.as_slice(), args_vec);
+        return argc as isize;
     } else {
         return -1;
     }
@@ -78,7 +98,7 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     let task = current_task().unwrap();
     // find a child process
 
-    // ---- access current TCB exclusively
+    // ---- access current PCB exclusively
     let mut inner = task.inner_exclusive_access();
     if !inner
         .children
@@ -98,7 +118,7 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
         // confirm that child will be deallocated after removing from children list
         assert_eq!(Arc::strong_count(&child), 1);
         let found_pid = child.getpid();
-        // ++++ temporarily access child TCB exclusively
+        // ++++ temporarily access child PCB exclusively
         let exit_code = child.inner_exclusive_access().exit_code;
         // ++++ release child PCB
         *translated_refmut(inner.memory_set.token(), exit_code_ptr) = exit_code;

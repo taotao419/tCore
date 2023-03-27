@@ -3,7 +3,7 @@ use super::TaskContext;
 use crate::config::TRAP_CONTEXT;
 use crate::fs::{File, Stdin, Stdout};
 use crate::logger::{info, info2};
-use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::mm::{translated_refmut, MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::task::pid::pid_alloc;
 use crate::trap::{trap_handler, TrapContext};
@@ -182,27 +182,63 @@ impl TaskControlBlock {
         // **** release children PCB automatically
     }
 
-    pub fn exec(&self, app_name: &str, elf_data: &[u8]) {
+    pub fn exec(&self, app_name: &str, elf_data: &[u8], args: Vec<String>) {
         // memory_set with elf program headers/trampoline/trap context/user stack
-        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
+        let (memory_set, mut user_sp, entry_point) = MemorySet::from_elf(elf_data);
         let trap_cx_ppn = memory_set
             .translate(VirtAddr::from(TRAP_CONTEXT).into())
             .unwrap()
             .ppn();
+        // push arguments on user stack 
+        // ex: 传入两个参数 aa和bb        
+        //                                          argv_base-----|
+        //                                |<--8 bytes->|          v   |1B |
+        // HighAddr |         0           |  argv[1]   |  argv[0] |\0| a | a |\0| b | b |Alignment|  LowAddr
+        //          ^--user_sp (original)      |            |--------------^                      ^---user_sp (now)
+        //                                     |--------------------------------------^
+        // 1 usize == 8 bytes
+        user_sp -= (args.len() + 1) * core::mem::size_of::<usize>(); // 先把user_sp栈顶指针下压到 arg[0] 处 , 这里压3个usize 0+arg[1]+arg[0]
+        let argv_base = user_sp;
+        let mut argv: Vec<_> = (0..=args.len())
+            .map(|arg| {  //ex: argv[0] 的值是入参字符串头字符指针.
+                translated_refmut(
+                    memory_set.token(),
+                    (argv_base + arg * core::mem::size_of::<usize>()) as *mut usize,
+                )
+            })
+            .collect();
+        *argv[args.len()] = 0; //示例中argv[2]=0
+        for i in 0..args.len() {
+            user_sp -= args[i].len() + 1;
+            *argv[i] = user_sp; // ex: argv[0] 指向 "aa" 这个首字母的位置
+            let mut p = user_sp;
+            //这里把aa这两个字符,压到栈里. 也就是写入p指向位置的格子(byte)
+            for c in args[i].as_bytes() {
+                *translated_refmut(memory_set.token(), p as *mut u8) = *c; 
+                p += 1; //下一个字节位置
+            }
+            *translated_refmut(memory_set.token(), p as *mut u8) = 0;//把\0压入栈里,方便应用知道哪里是字符串结尾
+        }
+        // make the user_sp aligned to 8B for k210 platform
+        user_sp -= user_sp % core::mem::size_of::<usize>();//K210平台上访问用户栈会触发访存不对齐的异常 也就是Alignment这块地址
 
         let mut inner = self.inner_exclusive_access();
         inner.memory_set = memory_set;
         inner.trap_cx_ppn = trap_cx_ppn;
-        inner.base_size = user_sp;
+        inner.base_size = user_sp; // 是不是要这一行?
         inner.app_name = app_name.to_string();
-        let trap_cx = inner.get_trap_cx();
-        *trap_cx = TrapContext::app_init_context(
+        // initialize trap_cx
+        let mut trap_cx = TrapContext::app_init_context(
             entry_point,
             user_sp,
             KERNEL_SPACE.exclusive_access().token(),
             self.kernel_stack.get_top(),
             trap_handler as usize,
         );
+        trap_cx.x[10] = args.len(); // x10(a0)寄存器, 函数入参1寄存器 传入命令行参数个数
+        trap_cx.x[11] = argv_base; // x11(a1)寄存器, 函数入参2寄存器 传如argv_base 具体位置看上面注释图 读取argv[0]/argv[1]/argv[2]
+        *inner.get_trap_cx()=trap_cx;
+
         info("[KERNEL] EXEC Process id : ", &self.getpid());
         info("[KERNEL] EXEC App name : ", &inner.app_name);
     }

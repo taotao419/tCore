@@ -10,7 +10,7 @@ use user_lib::{exec, fork, wait, yield_};
 fn main() -> i32 {
     if fork() == 0 {
         //此时 fork()之后, 已经分裂为独立的两个进程了, 这部分是子进程开始运行user_shell这个User APP
-        exec("user_shell\0");
+        exec("user_shell\0",&[core::ptr::null::<u8>()]);
     } else {
         //这里还是父进程 或者说原进程. 在原进程的代码执行中永远会执行else块中的代码
         loop {

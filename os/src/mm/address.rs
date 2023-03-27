@@ -171,6 +171,10 @@ impl VirtPageNum {
 }
 
 impl PhysAddr {
+    ///Get const reference to `PhysAddr` value
+    pub fn get_ref<T>(&self) -> &'static T {
+        unsafe { (self.0 as *const T).as_ref().unwrap() }
+    }
     ///Get mutable reference to `PhysAddr` value
     pub fn get_mut<T>(&self) -> &'static mut T {
         unsafe { (self.0 as *mut T).as_mut().unwrap() }
@@ -206,7 +210,7 @@ impl StepByOne for PhysPageNum {
     }
 }
 
-#[derive(Copy, Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 /// a simple range structure for type T
 pub struct SimpleRange<T>
 where
