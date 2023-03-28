@@ -51,11 +51,14 @@ pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
             .find(|i| unsafe { ((str_start + *i) as *const u8).read_volatile() == 0 })
             .unwrap();
         // 知道字符串开头地址, 和字符串长度. 就可以把这个字符串取出来放到vec里
-        v.push(
-            core::str::from_utf8(unsafe {
-                core::slice::from_raw_parts(str_start as *const u8, len)
-            })
-            .unwrap(),
+        let arg_str = core::str::from_utf8(unsafe {
+            core::slice::from_raw_parts(str_start as *const u8, len)
+        })
+        .unwrap();
+        v.push(arg_str);
+        println!(
+            "\x1b[32m[_start]  read argv index [{}] str_start:[{}] len:[{}] arg_str:[{}] \x1b[0m",
+            i, str_start, len,arg_str
         );
     }
 
@@ -65,7 +68,7 @@ pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
 
 #[linkage = "weak"]
 #[no_mangle]
-fn main(_argc:usize, _argv:&[&str]) -> i32 {
+fn main(_argc: usize, _argv: &[&str]) -> i32 {
     panic!("Cannot find main!");
 }
 

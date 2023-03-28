@@ -5,7 +5,7 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 use user_lib::console::getchar;
-use user_lib::{chdir, close, dup, exec, fork, open,pipe, waitpid, OpenFlags};
+use user_lib::{chdir, close, dup, exec, fork, open, pipe, waitpid, OpenFlags};
 
 extern crate alloc;
 
@@ -27,6 +27,7 @@ struct ProcessArguments {
 
 impl ProcessArguments {
     pub fn new(command: &str) -> Self {
+        println!("\x1b[32m[DEBUG] Command String -- [{}] \x1b[0m", command);
         let args: Vec<_> = command.split(' ').collect();
         let mut args_copy: Vec<String> = args
             .iter()
@@ -64,13 +65,15 @@ impl ProcessArguments {
 
         let mut args_addr: Vec<*const u8> = args_copy.iter().map(|arg| arg.as_ptr()).collect();
         args_addr.push(core::ptr::null::<u8>());
-
-        return Self {
+        
+        let result=Self {
             input,
             output,
             args_copy,
             args_addr,
         };
+        println!("\x1b[32m[DEBUG] ProcessArguments  -- [{:?}] \x1b[0m", result);
+        return result;
     }
 }
 
@@ -108,15 +111,14 @@ pub fn main() -> i32 {
                         if i == 0 {
                             if !process_args.output.is_empty() {
                                 valid = false; //第一个参数如果是重定向之输出文件, 命令格式报错
-                            } 
-                        }else if i == process_arguments_list.len() - 1 {
-                                if !process_args.input.is_empty() {
-                                    valid = false; //最后一个参数如果是重定向值输入文件, 命令格式报错
-                                }
-                        } else if !process_args.output.is_empty()
-                                || !process_args.input.is_empty()
+                            }
+                        } else if i == process_arguments_list.len() - 1 {
+                            if !process_args.input.is_empty() {
+                                valid = false; //最后一个参数如果是重定向值输入文件, 命令格式报错
+                            }
+                        } else if !process_args.output.is_empty() || !process_args.input.is_empty()
                         {
-                                valid = false; //同一个参数里不可能既有重定向输入文件 又有重定向输出文件. 如果这样必然报错
+                            valid = false; //同一个参数里不可能既有重定向输入文件 又有重定向输出文件. 如果这样必然报错
                         }
                     }
                     if process_arguments_list.len() == 1 {
@@ -131,7 +133,7 @@ pub fn main() -> i32 {
                             for _ in 0..process_arguments_list.len() - 1 {
                                 let mut pipe_fd = [0usize; 2];
                                 pipe(&mut pipe_fd);
-                                pipes_fd.push(pipe_fd);//一个命令行可以拆出多个管道
+                                pipes_fd.push(pipe_fd); //一个命令行可以拆出多个管道
                             }
                         }
                         let mut children: Vec<_> = Vec::new();
@@ -168,7 +170,7 @@ pub fn main() -> i32 {
                                         return -4;
                                     }
                                     let output_fd = output_fd as usize;
-                                    close(1); // 先关闭STD_OUT 
+                                    close(1); // 先关闭STD_OUT
                                     assert_eq!(dup(output_fd), 1); //用file2.txt 替换原有的STD_OUT. 确定复制出的output_fd的描述符还是1
                                     close(output_fd);
                                 }
@@ -176,9 +178,9 @@ pub fn main() -> i32 {
                                 // TODO : 理解的有点问题, 重新理解
                                 if i > 0 {
                                     close(0); //把本进程的文件描述符fd=0 **标准输入** 关闭
-                                    //pipes_fd.get(i - 1) 意味着拿上个进程的读口
+                                              //pipes_fd.get(i - 1) 意味着拿上个进程的读口
                                     let read_end = pipes_fd.get(i - 1).unwrap()[0]; //N个带参数的进程, 意味着有N-1个管道
-                                    //把上个进程的读口 重定向到本进程的**标准输入**
+                                                                                    //把上个进程的读口 重定向到本进程的**标准输入**
                                     assert_eq!(dup(read_end), 0);
                                 }
                                 // send output to the next process
@@ -190,14 +192,14 @@ pub fn main() -> i32 {
                                     assert_eq!(dup(write_end), 1);
                                 }
                                 // close all pipe ends inherited from the parent process
-                                for pipe_fd in pipes_fd.iter(){
+                                for pipe_fd in pipes_fd.iter() {
                                     // 之前的fd 全部都复制了, 原来的可以关闭了
                                     close(pipe_fd[0]);
                                     close(pipe_fd[1]);
                                 }
                                 // execute new application
                                 // 根据命令行 要打开多个带参数新进程
-                                if exec(args_copy[0].as_str(),args_addr.as_slice())==-1{
+                                if exec(args_copy[0].as_str(), args_addr.as_slice()) == -1 {
                                     println!("Error when executing!");
                                     return -4;
                                 }
@@ -207,14 +209,14 @@ pub fn main() -> i32 {
                                 children.push(pid);
                             }
                         }
-                        for pipe_fd in pipes_fd.iter(){
+                        for pipe_fd in pipes_fd.iter() {
                             close(pipe_fd[0]);
                             close(pipe_fd[1]);
                         }
-                        let mut exit_code:i32=0;
-                        for pid in children.into_iter(){
+                        let mut exit_code: i32 = 0;
+                        for pid in children.into_iter() {
                             //这个是loop的wait, 很有可能子进程exec不成功, 它的进程需要父进程立即回收掉.
-                            let exit_pid = waitpid(pid as usize, &mut exit_code); 
+                            let exit_pid = waitpid(pid as usize, &mut exit_code);
                             assert_eq!(pid, exit_pid);
                             println!("Shell: Process {} exited with code {}", pid, exit_code);
                         }

@@ -8,7 +8,7 @@ use user_lib::{close, open, read, write, OpenFlags};
 
 #[no_mangle]
 pub fn main() -> i32 {
-    let test_str = "Hello, world!";
+    let test_str = "Hello, world! \n ni hao \n Hello everyone";
     let filea = "filea\0";
     let fd = open(filea, OpenFlags::CREATE | OpenFlags::WRONLY);
     assert!(fd > 0);
