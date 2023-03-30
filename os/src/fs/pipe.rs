@@ -5,7 +5,7 @@ use alloc::sync::{Arc, Weak};
 
 use crate::task::suspend_current_and_run_next;
 
-
+#[derive(Debug)]
 pub struct Pipe {
     readable: bool,
     writable: bool,
@@ -32,13 +32,14 @@ impl Pipe {
 
 const RING_BUFFER_SIZE: usize = 32;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 enum RingBufferStatus {
     Full,
     Empty,
     Normal,
 }
 
+#[derive(Debug)]
 pub struct PipeRingBuffer {
     arr: [u8; RING_BUFFER_SIZE],
     head: usize,
@@ -108,9 +109,14 @@ impl PipeRingBuffer {
 /// Return (read_end, write_end)
 pub fn make_pipe() -> (Arc<Pipe>, Arc<Pipe>) {
     let buffer = Arc::new(unsafe { UPSafeCell::new(PipeRingBuffer::new()) });
+    //读口和写口 是对同一个buffer进行操作, 貌似是句废话.
     let read_end = Arc::new(Pipe::read_end_with_buffer(buffer.clone()));
     let write_end = Arc::new(Pipe::write_end_with_buffer(buffer.clone()));
     buffer.exclusive_access().set_write_end(&write_end);
+    println!(
+        "\x1b[38;5;208m[SYSCALL : pipe] make pipe, Read end [{:?}] and Write end [{:?}]  \x1b[0m",
+        read_end, write_end
+    );
     return (read_end, write_end);
 }
 
@@ -123,11 +129,12 @@ impl File for Pipe {
         return self.writable;
     }
 
-    /// *************** 从环状缓存 ==读==到==> 应用缓存
+    /// *************** 从管道(环状)缓存 ==读==到==> 应用缓存
     /// UserBuffer 是磁盘的字节流在内核中对应的一块内存映射, 可以认为是一个磁盘文件的镜像
     fn read(&self, buf: UserBuffer) -> usize {
         assert!(self.readable());
         let want_to_read = buf.len();
+        println!("\x1b[38;5;208m[SYSCALL : pipe] 管道 应用缓存 Read 管道缓存, want_to_read length [{}]  \x1b[0m",want_to_read);
         //转换为迭代器, 这个迭代器就是call一次next函数, 吐出一个指向某个字节的指针
         //大致画下应用缓冲区UserBuffer内部结构
         // |a|b|c|d|a|d|a|c|b
@@ -138,14 +145,19 @@ impl File for Pipe {
         // 第二次call , 就是指向第一行第二个字节b的指针
         let mut buf_iter = buf.into_iter();
         let mut already_read = 0usize; //维护实际有多少字节从管道读到应用的缓冲区
+        let mut loop_num = 0usize;
         loop {
+            loop_num = loop_num + 1;
             let mut ring_buffer = self.buffer.exclusive_access();
             let loop_read = ring_buffer.available_read(); //这轮循环中能读取多少字符
+            println!("\x1b[38;5;208m[SYSCALL : pipe] 应用缓存 Read 管道缓存 | start [{}] times read, loop_read length [{}]  \x1b[0m",loop_num,loop_read);
             if loop_read == 0 {
                 //如果读取字符为零, 可能需要确认下写端是否已经关闭了
                 if ring_buffer.all_write_ends_closed() {
+                    println!("\x1b[38;5;208m[SYSCALL : pipe] 应用缓存 Read 管道缓存| 写端已经关闭了 -- close \x1b[0m");
                     return already_read; //确认写端关闭, 直接返回
                 }
+                println!("\x1b[38;5;208m[SYSCALL : pipe] 应用缓存 Read 管道缓存 | no data in pipe buffer -- waiting \x1b[0m");
                 drop(ring_buffer);
                 suspend_current_and_run_next(); // sys_yield, 等下次轮到CPU执行的时候 进入下个循环
                 continue;
@@ -160,29 +172,39 @@ impl File for Pipe {
                     }
                     already_read += 1;
                     if already_read == want_to_read {
+                        println!("\x1b[38;5;208m[SYSCALL : pipe] 应用缓存 Read 管道缓存 | already_read == want_to_read -- close \x1b[0m");
                         //说明应用缓冲区都写满了, 直接返回
                         return want_to_read;
                     }
                     //进入下个循环, 读取下个字节
                 } else {
+                    println!("\x1b[38;5;208m[SYSCALL : pipe] 应用缓存 Read 管道缓存 | 应用缓存循环结束 -- close \x1b[0m");
                     //call next(), 返回None 进入这里.
                     return already_read;
                 }
             }
+
+            
         }
     }
 
     fn write(&self, buf: UserBuffer) -> usize {
         assert!(self.writable());
         let want_to_write = buf.len();
+        println!("\x1b[35m[SYSCALL : pipe] 应用缓存 Write 管道缓存, want_to_write length [{}]  \x1b[0m",want_to_write);
         let mut buf_iter = buf.into_iter();
         let mut already_write = 0usize;
+        let mut loop_num = 0usize;
         loop {
+            loop_num = loop_num + 1;
             let mut ring_buffer = self.buffer.exclusive_access();
             let loop_write = ring_buffer.available_write();
-            if loop_write == 0 {//环状队列满了
+            println!("\x1b[35m[SYSCALL : pipe] 应用缓存 Write 管道缓存 | start [{}] times write, loop_write length [{}]  \x1b[0m",loop_num,loop_write);
+            if loop_write == 0 {
+                println!("\x1b[35m[SYSCALL : pipe] 应用缓存 Write 管道缓存 | full data in pipe buffer -- waiting \x1b[0m");
+                //环状队列满了
                 drop(ring_buffer);
-                suspend_current_and_run_next();// sys_yield, 等下次轮到CPU执行的时候 进入下个循环
+                suspend_current_and_run_next(); // sys_yield, 等下次轮到CPU执行的时候 进入下个循环
                 continue;
             }
             // write at most loop_write bytes
@@ -192,9 +214,12 @@ impl File for Pipe {
                     ring_buffer.write_byte(unsafe { *byte_ref }); //核心: 从应用缓冲区读到的一个字节(指针指向的一个字节) 写入到环状队列缓存
                     already_write += 1;
                     if already_write == want_to_write {
+                        println!("\x1b[35m[SYSCALL : pipe] 应用缓存 Write 管道缓存 |  already_write == want_to_write  -- close \x1b[0m");
                         return want_to_write;
                     }
-                } else { //拆箱失败直接返回,失败的理由就是迭代器走到缓冲区UserBuffer的最后了.
+                } else {
+                    //拆箱失败直接返回,失败的理由就是迭代器走到缓冲区UserBuffer的最后了.
+                    println!("\x1b[35m[SYSCALL : pipe] 应用缓存 Write 管道缓存 | 应用缓存循环结束 -- close \x1b[0m");
                     return already_write;
                 }
             }

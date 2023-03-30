@@ -87,6 +87,7 @@ pub fn sys_pipe(pipe: *mut usize) -> isize {
     //本质上下面两行代码就是
     // pipe[0] = read_fd;
     // pipe[1] = write_fd;
+    println!("\x1b[38;5;208m[SYSCALL : pipe] Create Pipe, User Pipe Point [{:?}] Read fd [{}] and Write fd [{}]  \x1b[0m",pipe, read_fd, write_fd);
     *translated_refmut(token, pipe) = read_fd;
     *translated_refmut(token, unsafe { pipe.add(1) }) = write_fd;
     return 0;
@@ -105,5 +106,6 @@ pub fn sys_dup(fd: usize) -> isize {
     }
     let new_fd = inner.alloc_fd(); // 申请一个新的文件描述符
     inner.fd_table[new_fd] = Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap())); // 新的文件描述符指向的还是老的文件描述符指向的文件
+    println!("\x1b[38;5;208m[SYSCALL : dup pipe] clone fd [{}] ==> new fd [{}]  \x1b[0m",fd, new_fd);
     return new_fd as isize;
 }

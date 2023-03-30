@@ -34,7 +34,7 @@ build: env $(KERNEL_BIN) fs-img
 
 env:
 	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
-	cargo install cargo-binutils
+	# cargo install cargo-binutils
 	rustup component add rust-src
 	rustup component add llvm-tools-preview
 
