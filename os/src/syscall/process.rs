@@ -3,8 +3,8 @@ use crate::fs::{list_files, open_file, OpenFlags};
 use crate::mm::{translated_ref, translated_refmut, translated_str};
 use crate::sbi::shutdown;
 use crate::task::{
-    add_task, current_task, current_user_token, exit_current_and_run_next,
-    suspend_current_and_run_next,
+    add_task, current_task, current_user_token, exit_current_and_run_next, pid2task,
+    suspend_current_and_run_next, SignalAction, SignalFlags, MAX_SIG,
 };
 use crate::timer::get_time_ms;
 use alloc::string::String;
@@ -72,7 +72,8 @@ pub fn sys_exec(path: *const u8, mut args: *const usize) -> isize {
     let mut args_vec: Vec<String> = Vec::new();
     loop {
         let arg_str_ptr = *translated_ref(token, args); //args现在指向arg1字符串的数组位置, 但是这个位置是虚拟地址, OS在内核层还需要翻译成物理地址,这里只是读出字符串头字符的指针来.
-        if arg_str_ptr == 0 { //如果读出的字符串是0, 说明后面再没有参数了
+        if arg_str_ptr == 0 {
+            //如果读出的字符串是0, 说明后面再没有参数了
             break;
         }
         args_vec.push(translated_str(token, arg_str_ptr as *const u8)); //OS 真正从物理地址读出参数字符串 并放入Vec
@@ -85,7 +86,7 @@ pub fn sys_exec(path: *const u8, mut args: *const usize) -> isize {
         let all_data = app_inode.read_all();
         let task = current_task().unwrap();
         let argc = args_vec.len();
-        task.exec(path.as_str(),all_data.as_slice(), args_vec);
+        task.exec(path.as_str(), all_data.as_slice(), args_vec);
         return argc as isize;
     } else {
         return -1;
@@ -138,4 +139,97 @@ pub fn sys_list_apps() -> isize {
 pub fn sys_shutdown() -> isize {
     shutdown();
     return 0;
+}
+
+pub fn sys_kill(pid: usize, signum: i32) -> isize {
+    if let Some(task) = pid2task(pid) {
+        //通过pid找到进程控制块
+        if let Some(flag) = SignalFlags::from_bits(1 << signum) {
+            // insert the signal if legal
+            let mut task_ref = task.inner_exclusive_access();
+            if task_ref.signals.contains(flag) {
+                //已经有此信号了, do nothing
+                return -1;
+            }
+            task_ref.signals.insert(flag); //在未处理信号集合中插入此信号
+            return 0;
+        } else {
+            return -1;
+        }
+    } else {
+        return -1;
+    }
+}
+
+/// 把该进程的信号掩码设置到PCB数据结构里面去
+pub fn sys_sigprocmask(mask: u32) -> isize {
+    if let Some(task) = current_task() {
+        let mut inner = task.inner_exclusive_access();
+        let old_mask = inner.signal_mask;
+        if let Some(flag) = SignalFlags::from_bits(mask) {
+            //u32类型 转为 SignalFlags 类似枚举类型.
+            inner.signal_mask = flag;
+            old_mask.bits() as isize
+        } else {
+            -1
+        }
+    } else {
+        -1
+    }
+}
+
+pub fn sys_sigreturn() -> isize {
+    if let Some(task) = current_task() {
+        let mut inner = task.inner_exclusive_access();
+        inner.handling_sig = -1;
+        // restore the trap context
+        let trap_ctx = inner.get_trap_cx();
+        *trap_ctx = inner.trap_ctx_backup.unwrap();
+        // Here we return the value of a0 in the trap_ctx,
+        // otherwise it will be overwritten after we trap
+        // back to the original execution of the application.
+        trap_ctx.x[10] as isize
+    } else {
+        return -1;
+    }
+}
+
+/// 检查sigaction的参数是否有错误 (有错误返回true).
+/// 如果action 或者 old_action为空指针视为错误
+/// 如果信号类型为SIGKILL或者SIGSTOP, 只能由内核处理. 不可交给应用程序处理.
+fn check_sigaction_error(signal: SignalFlags, action: usize, old_action: usize) -> bool {
+    if action == 0
+        || old_action == 0
+        || signal == SignalFlags::SIGKILL
+        || signal == SignalFlags::SIGSTOP
+    {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+pub fn sys_sigaction(
+    signum: i32,
+    action: *const SignalAction,
+    old_action: *mut SignalAction,
+) -> isize {
+    let token = current_user_token();
+    let task = current_task().unwrap();
+    let mut inner = task.inner_exclusive_access();
+    if signum as usize > MAX_SIG {
+        return -1;
+    }
+    if let Some(flag) = SignalFlags::from_bits(1 << signum) {
+        // 检查入参是否正确
+        if check_sigaction_error(flag, action as usize, old_action as usize) {
+            return -1;
+        }
+        let prev_action = inner.signal_actions.table[signum as usize];
+        *translated_refmut(token, old_action) = prev_action; //prev_action函数指针 赋值给old_action. 由于是跨虚拟内存空间操作, 需要用translated_refmut
+        inner.signal_actions.table[signum as usize] = *translated_ref(token, action); //这也是跨虚拟内存, 本质就是把action函数指针赋值到PCB的信号对应callback函数表.
+        return 0;
+    } else {
+        return -1;
+    }
 }

@@ -1,4 +1,5 @@
 use super::pid::{KernelStack, PidHandle};
+use super::{SignalFlags, SignalActions};
 use super::TaskContext;
 use crate::config::TRAP_CONTEXT;
 use crate::fs::{File, Stdin, Stdout};
@@ -36,6 +37,14 @@ pub struct TaskControlBlockInner {
     pub exit_code: i32, //当进程主动调用exit 或者执行出错被内核杀死, 它的退出码会不同
     pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>, //文件描述符表
     pub working_dir: String, //当前工作目录
+    pub signals:SignalFlags, //记录目前已经收到了哪些尚未处理的信号
+    pub signal_mask:SignalFlags, //屏蔽的信号
+    pub handling_sig:isize, // 这个信号正在被处理
+    pub signal_actions:SignalActions,
+    pub killed:bool, // 进程已经被杀死?
+    pub frozen:bool, // 进程已经被暂停?
+    pub trap_ctx_backup:Option<TrapContext>,
+
 }
 
 impl TaskControlBlockInner {
@@ -104,6 +113,13 @@ impl TaskControlBlock {
                         Some(Arc::new(Stdout)),
                     ],
                     working_dir: String::from("/"),
+                    signals:SignalFlags::empty(),
+                    signal_mask:SignalFlags::empty(),
+                    handling_sig:-1,
+                    signal_actions: SignalActions::default(),
+                    killed:false,
+                    frozen:false,
+                    trap_ctx_backup:None
                 })
             },
         };
@@ -163,6 +179,14 @@ impl TaskControlBlock {
                     exit_code: 0,
                     fd_table: new_fd_table,
                     working_dir,
+                    signals:SignalFlags::empty(),
+                    // 从父进程这里继承信号屏蔽码 与信号回调函数指针
+                    signal_mask: parent_inner.signal_mask,
+                    handling_sig: -1,
+                    signal_actions: parent_inner.signal_actions.clone(),
+                    killed:false,
+                    frozen:false,
+                    trap_ctx_backup:None,
                 })
             },
         });
