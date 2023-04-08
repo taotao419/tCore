@@ -167,6 +167,10 @@ fn call_kernel_signal_handler(signal: SignalFlags) {
             task_inner.killed = true;
         }
     }
+    println!(
+        "\x1b[38;5;208m[TRAP] 关键信号由核心处理 Signal [{:?}] frozen [{}] killed [{}]  \x1b[0m",
+        signal, task_inner.frozen, task_inner.killed
+    );
 }
 
 fn call_user_signal_handler(sig: usize, signal: SignalFlags) {
@@ -186,6 +190,7 @@ fn call_user_signal_handler(sig: usize, signal: SignalFlags) {
         trap_ctx.sepc = handler;
         //put args (a0) first input param
         trap_ctx.x[10] = sig;
+        println!("\x1b[38;5;208m[TRAP] 进程[{}] 调用应用程序自定义的信号回调函数, sig [{}] handler [{}] \x1b[0m",task.getpid(),sig,handler);
     } else {
         // default action
         println!("[K] task/call_user_signal_handler: default action: ignore it or kill process");
@@ -245,9 +250,12 @@ pub fn handle_signals() {
             (task_inner.frozen, task_inner.killed)
         };
         if !frozen || killed {
+            // 默认没有frozen 自动从死循环出来
             // 如果进程没有因收到 SIGSTOP 而暂停, 或者收到 SIGKILL 而被杀掉, 那么就可以破坏死循环
+            // println!("\x1b[38;5;208m[SYSCALL : signal] 信号 KILLED 从 handle_sginals 死循环中出来 frozen [{}] , killed [{}] \x1b[0m",frozen,killed);
             break;
         }
+        // 只有 frozen 且没有killed的进程才会走到这里 陷入死循环.
         // 走到这里 说明还在死循环中, 那么该进程一直处于时间暂停状态 (想到了奇怪的剧情) call sys_yield() 让出CPU给其他进程
         suspend_current_and_run_next();
     }

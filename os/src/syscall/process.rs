@@ -141,6 +141,9 @@ pub fn sys_shutdown() -> isize {
     return 0;
 }
 
+/// 根据Linux手册
+/// The  kill()  system  call  can  be  used to send any signal to any process group or process.
+/// 虽然这个函数名字完全和其行为完全没有什么关系, 就是用来给任意进程发送信号
 pub fn sys_kill(pid: usize, signum: i32) -> isize {
     if let Some(task) = pid2task(pid) {
         //通过pid找到进程控制块
@@ -152,6 +155,10 @@ pub fn sys_kill(pid: usize, signum: i32) -> isize {
                 return -1;
             }
             task_ref.signals.insert(flag); //在未处理信号集合中插入此信号
+            println!(
+                "\x1b[38;5;208m[SYSCALL : kill] 给程序Pid [{}] 发送信号 Signum [{}] Signals in Process [{:?}]  \x1b[0m",
+                pid, signum, task_ref.signals
+            );
             return 0;
         } else {
             return -1;
@@ -185,6 +192,7 @@ pub fn sys_sigreturn() -> isize {
         // restore the trap context
         let trap_ctx = inner.get_trap_cx();
         *trap_ctx = inner.trap_ctx_backup.unwrap();
+        println!("\x1b[38;5;208m[SYSCALL : SIGRETURN] 程序 [{}]  执行SYS_SIGRETURN系统调用 \x1b[0m",task.getpid());
         // Here we return the value of a0 in the trap_ctx,
         // otherwise it will be overwritten after we trap
         // back to the original execution of the application.
@@ -228,6 +236,7 @@ pub fn sys_sigaction(
         let prev_action = inner.signal_actions.table[signum as usize];
         *translated_refmut(token, old_action) = prev_action; //prev_action函数指针 赋值给old_action. 由于是跨虚拟内存空间操作, 需要用translated_refmut
         inner.signal_actions.table[signum as usize] = *translated_ref(token, action); //这也是跨虚拟内存, 本质就是把action函数指针赋值到PCB的信号对应callback函数表.
+        println!("\x1b[38;5;208m[SYSCALL : sigaction] 程序 [{}]  信号 [{}] mapping 回调函数 [{:?}]   \x1b[0m",task.getpid(),signum,action);
         return 0;
     } else {
         return -1;
