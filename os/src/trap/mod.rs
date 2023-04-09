@@ -107,7 +107,8 @@ pub fn trap_handler() -> ! {
     handle_signals();
 
     if let Some((errno,msg))=check_signals_error_of_current(){
-        println!("[kernel] {}", msg);
+        println!("\x1b[38;5;208m[TRAP] 内核默认处理错误信号 直接杀掉该进程  [{}]  \x1b[0m",msg);
+        // println!("[kernel] {}", msg);
         exit_current_and_run_next(errno);
     }
     trap_return();

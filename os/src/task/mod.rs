@@ -136,6 +136,7 @@ pub fn current_add_signal(signal: SignalFlags) {
                                   //  000110
                                   //  000001
                                   //=>000111
+    println!("\x1b[38;5;208m[TRAP] 现在进程[{}] 插入信号[{:?}] \x1b[0m",task.getpid(),task_inner.signals);
 }
 
 fn call_kernel_signal_handler(signal: SignalFlags) {
@@ -186,7 +187,7 @@ fn call_user_signal_handler(sig: usize, signal: SignalFlags) {
         //backup trapframe
         let mut trap_ctx = task_inner.get_trap_cx();
         task_inner.trap_ctx_backup = Some(*trap_ctx); //TODO : Some包裹的对象 是不是clone出来的?
-
+        // 最最核心的地方 , 把下一个函数入口指向handler, 此函数的第一个参数a0设置为sig. 执行后下一个进行TRAP
         trap_ctx.sepc = handler;
         //put args (a0) first input param
         trap_ctx.x[10] = sig;
