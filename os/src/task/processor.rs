@@ -1,13 +1,9 @@
-use alloc::{sync::Arc, vec::Vec};
-
-use crate::{sync::UPSafeCell, trap::TrapContext};
-
-use super::{
-    manager::fetch_task,
-    switch::__switch,
-    task::{TaskControlBlock, TaskStatus},
-    TaskContext,
-};
+use super::__switch;
+use super::{fetch_task, TaskStatus};
+use super::{ProcessControlBlock, TaskContext, TaskControlBlock};
+use crate::sync::UPSafeCell;
+use crate::trap::TrapContext;
+use alloc::sync::Arc;
 use lazy_static::*;
 
 pub struct Processor {
@@ -54,29 +50,35 @@ pub fn run_tasks() {
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext; //为了配合__switch这个函数 所以叫next_task_cx
             task_inner.task_status = TaskStatus::Running;
             drop(task_inner);
-            //release coming task TCB manually
+            // release coming task TCB manually
             processor.current = Some(task);
+            // release processor manually
             drop(processor);
             unsafe {
                 __switch(idle_task_cx_ptr, next_task_cx_ptr);
             }
+        } else {
+            println!("no tasks available in run_tasks");
         }
     }
 }
 
-///Take the current task,leaving a None in its place
+///Take the current thread,leaving a None in its place
 pub fn take_current_task() -> Option<Arc<TaskControlBlock>> {
     return PROCESSOR.exclusive_access().take_current();
 }
-///Get running task
+///Get running thread
 pub fn current_task() -> Option<Arc<TaskControlBlock>> {
     return PROCESSOR.exclusive_access().current();
 }
 
+pub fn current_process() -> Arc<ProcessControlBlock> {
+    return current_task().unwrap().process.upgrade().unwrap();
+}
+
 pub fn current_user_token() -> usize {
     let task = current_task().unwrap();
-    let token = task.inner_exclusive_access().get_user_token();
-    return token;
+    return task.get_user_token();
 }
 
 pub fn current_trap_cx() -> &'static mut TrapContext {
@@ -85,6 +87,21 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
         .inner_exclusive_access()
         .get_trap_cx();
 }
+
+pub fn current_trap_cx_user_va() -> usize {
+    return current_task()
+        .unwrap()
+        .inner_exclusive_access()
+        .res
+        .as_ref()
+        .unwrap()
+        .trap_cx_user_va();
+}
+
+pub fn current_kstack_top() -> usize {
+    return current_task().unwrap().kstack.get_top();
+}
+
 //Return to idle control flow for new scheduling
 pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
     let mut processor = PROCESSOR.exclusive_access();

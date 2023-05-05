@@ -26,9 +26,9 @@ impl TrapContext {
     /// init app context
     pub fn app_init_context(
         entry: usize,
-        sp: usize,
+        sp: usize,  //核心参数 用户态的栈顶指针 程序的数据从这里开始
         kernel_satp: usize,
-        kernel_sp: usize,
+        kernel_sp: usize, //核心参数 内核态的栈顶指针
         trap_handler: usize,
     ) -> Self {
         let mut sstatus = sstatus::read(); // CSR sstatus

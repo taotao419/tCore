@@ -3,8 +3,8 @@ use crate::fs::{list_files, open_file, OpenFlags};
 use crate::mm::{translated_ref, translated_refmut, translated_str};
 use crate::sbi::shutdown;
 use crate::task::{
-    add_task, current_task, current_user_token, exit_current_and_run_next, pid2task,
-    suspend_current_and_run_next, SignalAction, SignalFlags, MAX_SIG,
+    add_task, current_process, current_task, current_user_token, exit_current_and_run_next,
+    pid2process, suspend_current_and_run_next, SignalAction, SignalFlags, MAX_SIG,
 };
 use crate::timer::get_time_ms;
 use alloc::string::String;
@@ -29,36 +29,36 @@ pub fn sys_get_time() -> isize {
 }
 
 pub fn sys_getpid() -> isize {
-    current_task().unwrap().pid.0 as isize
+    current_task().unwrap().process.upgrade().unwrap().getpid() as isize
 }
 
 pub fn sys_getcwd() -> isize {
-    let current_task = current_task().unwrap();
-    println!("{}", current_task.inner_exclusive_access().working_dir);
+    let current_process = current_process();
+    println!("{}", current_process.get_working_dir());
     return 0;
 }
 
 pub fn sys_chdir(path: *const u8) -> isize {
-    let current_task = current_task().unwrap();
+    let current_process = current_process();
     let token = current_user_token();
     let path = translated_str(token, path);
-    current_task.inner_exclusive_access().working_dir = path;
+    current_process.inner_exclusive_access().working_dir = path;
     return 0;
 }
 
 pub fn sys_fork() -> isize {
-    let current_task = current_task().unwrap();
-    let new_task = current_task.fork();
-    let new_pid = new_task.pid.0;
+    let current_process = current_process();
+    let new_process = current_process.fork();
+    let new_pid = new_process.pid.0;
     // modify trap context of new_task, because it returns immediately after switching
-    let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
+    let new_process_inner = new_process.inner_exclusive_access();
+    let task = new_process_inner.tasks[0].as_ref().unwrap();
+    let trap_cx = task.inner_exclusive_access().get_trap_cx();
     // we do not have to move to next instruction since we have done it before
     // for child process, fork returns 0
     trap_cx.x[10] = 0;
-    //add new task to scheduler
-    add_task(new_task);
 
-    return (new_pid as isize);
+    new_pid as isize
 }
 
 /// 这里args 指向命令行参数字符串其实地址数组的一个位置
@@ -84,9 +84,9 @@ pub fn sys_exec(path: *const u8, mut args: *const usize) -> isize {
 
     if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
         let all_data = app_inode.read_all();
-        let task = current_task().unwrap();
+        let process = current_process();
         let argc = args_vec.len();
-        task.exec(path.as_str(), all_data.as_slice(), args_vec);
+        process.exec(path.as_str(), all_data.as_slice(), args_vec);
         return argc as isize;
     } else {
         return -1;
@@ -96,11 +96,11 @@ pub fn sys_exec(path: *const u8, mut args: *const usize) -> isize {
 /// If there is not a child process whose pid is same as given, return -1.
 /// Else if there is a child process but it is still running, return -2.
 pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
-    let task = current_task().unwrap();
+    let process = current_process();
     // find a child process
 
     // ---- access current PCB exclusively
-    let mut inner = task.inner_exclusive_access();
+    let mut inner = process.inner_exclusive_access();
     if !inner
         .children
         .iter()
@@ -110,13 +110,13 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
         // ---- release current PCB
     }
     let pair = inner.children.iter().enumerate().find(|(_, p)| {
-        // ++++ temporarily access child PCB lock exclusively
-        p.inner_exclusive_access().is_zombie() && (pid == -1 || pid as usize == p.getpid())
+        // ++++ temporarily access child PCB exclusively
+        p.inner_exclusive_access().is_zombie && (pid == -1 || pid as usize == p.getpid())
         // ++++ release child PCB
     });
     if let Some((idx, _)) = pair {
         let child = inner.children.remove(idx);
-        // confirm that child will be deallocated after removing from children list
+        // confirm that child will be deallocated after being removed from children list
         assert_eq!(Arc::strong_count(&child), 1);
         let found_pid = child.getpid();
         // ++++ temporarily access child PCB exclusively
@@ -131,7 +131,7 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 }
 
 pub fn sys_list_apps() -> isize {
-    let path = current_task().unwrap().get_working_dir();
+    let path = current_process().get_working_dir();
     list_files(path.as_str());
     return 0;
 }
@@ -145,7 +145,7 @@ pub fn sys_shutdown() -> isize {
 /// The  kill()  system  call  can  be  used to send any signal to any process group or process.
 /// 虽然这个函数名字完全和其行为完全没有什么关系, 就是用来给任意进程发送信号
 pub fn sys_kill(pid: usize, signum: i32) -> isize {
-    if let Some(task) = pid2task(pid) {
+    if let Some(task) = pid2process(pid) {
         //通过pid找到进程控制块
         if let Some(flag) = SignalFlags::from_bits(1 << signum) {
             // insert the signal if legal
@@ -171,11 +171,13 @@ pub fn sys_kill(pid: usize, signum: i32) -> isize {
 /// 把该进程的信号掩码设置到PCB数据结构里面去
 pub fn sys_sigprocmask(mask: u32) -> isize {
     if let Some(task) = current_task() {
-        let mut inner = task.inner_exclusive_access();
-        let old_mask = inner.signal_mask;
+        let process = task.process.upgrade().unwrap();
+        let mut process_inner = process.inner_exclusive_access();
+        let mut task_inner = task.inner_exclusive_access();
+        let old_mask = process_inner.signal_mask;
         if let Some(flag) = SignalFlags::from_bits(mask) {
             //u32类型 转为 SignalFlags 类似枚举类型.
-            inner.signal_mask = flag;
+            process_inner.signal_mask = flag;
             old_mask.bits() as isize
         } else {
             -1
@@ -187,12 +189,17 @@ pub fn sys_sigprocmask(mask: u32) -> isize {
 
 pub fn sys_sigreturn() -> isize {
     if let Some(task) = current_task() {
-        let mut inner = task.inner_exclusive_access();
-        inner.handling_sig = -1;
+        let process = task.process.upgrade().unwrap();
+        let mut process_inner = process.inner_exclusive_access();
+        let mut task_inner = task.inner_exclusive_access();
+        process_inner.handling_sig = -1;
         // restore the trap context
-        let trap_ctx = inner.get_trap_cx();
-        *trap_ctx = inner.trap_ctx_backup.unwrap();
-        println!("\x1b[38;5;208m[SYSCALL : SIGRETURN] 程序 [{}]  执行SYS_SIGRETURN系统调用 \x1b[0m",task.getpid());
+        let trap_ctx = task_inner.get_trap_cx();
+        *trap_ctx = task_inner.trap_ctx_backup.unwrap();
+        println!(
+            "\x1b[38;5;208m[SYSCALL : SIGRETURN] 程序 [{}]  执行SYS_SIGRETURN系统调用 \x1b[0m",
+            process.getpid()
+        );
         // Here we return the value of a0 in the trap_ctx,
         // otherwise it will be overwritten after we trap
         // back to the original execution of the application.
@@ -224,7 +231,8 @@ pub fn sys_sigaction(
 ) -> isize {
     let token = current_user_token();
     let task = current_task().unwrap();
-    let mut inner = task.inner_exclusive_access();
+    let process = task.process.upgrade().unwrap();
+    let mut process_inner = process.inner_exclusive_access();
     if signum as usize > MAX_SIG {
         return -1;
     }
@@ -233,10 +241,10 @@ pub fn sys_sigaction(
         if check_sigaction_error(flag, action as usize, old_action as usize) {
             return -1;
         }
-        let prev_action = inner.signal_actions.table[signum as usize];
+        let prev_action = process_inner.signal_actions.table[signum as usize];
         *translated_refmut(token, old_action) = prev_action; //prev_action函数指针 赋值给old_action. 由于是跨虚拟内存空间操作, 需要用translated_refmut
-        inner.signal_actions.table[signum as usize] = *translated_ref(token, action); //这也是跨虚拟内存, 本质就是把action函数指针赋值到PCB的信号对应callback函数表.
-        println!("\x1b[38;5;208m[SYSCALL : sigaction] 程序 [{}]  信号 [{}] mapping 回调函数 [{:?}]   \x1b[0m",task.getpid(),signum,action);
+        process_inner.signal_actions.table[signum as usize] = *translated_ref(token, action); //这也是跨虚拟内存, 本质就是把action函数指针赋值到PCB的信号对应callback函数表.
+        println!("\x1b[38;5;208m[SYSCALL : sigaction] 程序 [{}]  信号 [{}] mapping 回调函数 [{:?}]   \x1b[0m",process.getpid(),signum,action);
         return 0;
     } else {
         return -1;

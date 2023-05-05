@@ -33,9 +33,11 @@ const SYSCALL_LIST_APPS: usize = 999;
 
 mod fs;
 mod process;
+mod thread;
 
 use fs::*;
 use process::*;
+use thread::*;
 
 use crate::task::SignalAction;
 
