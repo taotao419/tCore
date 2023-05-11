@@ -53,7 +53,7 @@ impl TaskControlBlock {
     ) -> Self {
         let res = TaskUserRes::new(Arc::clone(&process), ustack_base, alloc_user_res);
         let trap_cx_ppn = res.trap_cx_ppn();
-        let kstack = kstack_alloc();
+        let kstack = kstack_alloc(); //创建新线程 除了用户栈之外 还必须创建内核栈
         let kstack_top = kstack.get_top();
         Self {
             process: Arc::downgrade(&process),

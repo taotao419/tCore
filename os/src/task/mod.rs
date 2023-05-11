@@ -37,8 +37,8 @@ pub use context::TaskContext;
 pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle, IDLE_PID};
 pub use manager::{add_task, pid2process, remove_from_pid2process, remove_task};
 pub use processor::{
-    current_kstack_top, current_process, current_task, current_trap_cx, current_trap_cx_user_va, current_user_token,
-    run_tasks, schedule, take_current_task, Processor,
+    current_kstack_top, current_process, current_task, current_trap_cx, current_trap_cx_user_va,
+    current_user_token, run_tasks, schedule, take_current_task, Processor,
 };
 pub use signal::{SignalFlags, MAX_SIG};
 pub use task::{TaskControlBlock, TaskStatus};
@@ -86,6 +86,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
     drop(task);
     // 如果是当前进程的主线程, 则此进程立即终止
     if tid == 0 {
+        println!( "\x1b[35m[THREAD] 主线程开始退出 \x1b[0m");
         let pid = process.getpid();
         if pid == IDLE_PID {
             println!(
@@ -100,7 +101,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
                 crate::sbi::shutdown()
             }
         }
-        //保存Pid<==>task 的mapping
+        //移除 Pid<==>process 的mapping
         remove_from_pid2process(pid);
         let mut process_inner = process.inner_exclusive_access();
         // 标记此进程已经是僵尸进程
@@ -227,7 +228,6 @@ fn call_kernel_signal_handler(signal: SignalFlags) {
 }
 
 fn call_user_signal_handler(sig: usize, signal: SignalFlags) {
-    //TODO : only main thread should handle this function.
     let process = current_process();
     let mut process_inner = process.inner_exclusive_access();
     let task = current_task().unwrap();

@@ -19,7 +19,7 @@ use crate::syscall::syscall;
 use crate::task::{
     check_signals_error_of_current, current_add_signal, current_trap_cx, current_trap_cx_user_va,
     current_user_token, exit_current_and_run_next, handle_signals, suspend_current_and_run_next,
-    SignalFlags,
+    SignalFlags, current_task,
 };
 use crate::timer::set_next_trigger;
 use core::arch::{asm, global_asm};
@@ -107,15 +107,25 @@ pub fn trap_handler() -> ! {
         }
     }
     //handle signals (handle the sent signal)
-    handle_signals();
+    let tid = current_task()
+        .unwrap()
+        .inner_exclusive_access()
+        .res
+        .as_ref()
+        .unwrap()
+        .tid as isize;
+    // 处理信号的事情让主线程来做.
+    if tid == 0 {
+        handle_signals();
 
-    if let Some((errno, msg)) = check_signals_error_of_current() {
-        println!(
-            "\x1b[38;5;208m[TRAP] 内核默认处理错误信号 直接杀掉该进程  [{}]  \x1b[0m",
-            msg
-        );
-        // println!("[kernel] {}", msg);
-        exit_current_and_run_next(errno);
+        if let Some((errno, msg)) = check_signals_error_of_current() {
+            println!(
+                "\x1b[38;5;208m[TRAP] 内核默认处理错误信号 直接杀掉该进程  [{}]  \x1b[0m",
+                msg
+            );
+            // println!("[kernel] {}", msg);
+            exit_current_and_run_next(errno);
+        }
     }
     trap_return();
 }

@@ -81,6 +81,7 @@ pub fn kstack_alloc() -> KernelStack {
         kstack_top.into(),
         MapPermission::R | MapPermission::W,
     );
+    println!("\x1b[33m[KERNEL] kstack id [{}] allocate kernel stack : [{:016x},{:016x}) Mode:RW \x1b[0m",kstack_id,kstack_bottom,kstack_top);
     return KernelStack(kstack_id);
 }
 
@@ -92,6 +93,7 @@ impl Drop for KernelStack {
             .exclusive_access()
             .remove_area_with_start_vpn(kernel_stack_bottom_va.into());
         KSTACK_ALLOCATOR.exclusive_access().dealloc(self.0);
+        println!( "\x1b[35m[Kernel] Kstack id [{}] DEALLOCATE kernel stack & id \x1b[0m", self.0);
     }
 }
 
@@ -134,7 +136,6 @@ impl TaskUserRes {
         if alloc_user_res {
             task_user_res.alloc_user_res();
         }
-
         return task_user_res;
     }
 
@@ -157,6 +158,7 @@ impl TaskUserRes {
             trap_cx_top.into(),
             MapPermission::R | MapPermission::W,
         );
+        println!("\x1b[33m[Thread] Thread id [{}] allocate resource, user stack : [{:016x},{:016x}) Mode:RWU , trap context : [{:x},{:x}) Mode:RW \x1b[0m",self.tid,ustack_bottom,ustack_top,trap_cx_bottom,trap_cx_top);
     }
 
     fn dealloc_user_res(&self) {
@@ -219,6 +221,10 @@ impl TaskUserRes {
 
 impl Drop for TaskUserRes {
     fn drop(&mut self) {
+        println!(
+            "\x1b[35m[Thread] Thread id [{}] DEALLOCATE resource \x1b[0m",
+            self.tid
+        );
         self.dealloc_tid();
         self.dealloc_user_res();
     }

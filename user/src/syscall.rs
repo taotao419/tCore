@@ -23,6 +23,9 @@ const SYSCALL_FORK: usize = 220;
 const SYSCALL_EXEC: usize = 221;
 const SYSCALL_WAITPID: usize = 260;
 const SYSCALL_LIST_APPS: usize = 999;
+const SYSCALL_THREAD_CREATE: usize = 1000;
+const SYSCALL_GETTID: usize = 1001;
+const SYSCALL_WAITTID: usize = 1002;
 
 // _start: addi  a0, x0, 1      # 1 = StdOut
 //         la    a1, helloworld # load address of helloworld
@@ -141,4 +144,16 @@ pub fn sys_shutdown() -> isize {
 
 pub fn sys_list_apps() -> isize {
     syscall(SYSCALL_LIST_APPS, [0, 0, 0])
+}
+
+pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
+    syscall(SYSCALL_THREAD_CREATE, [entry, arg, 0])
+}
+
+pub fn sys_gettid() -> isize {
+    syscall(SYSCALL_GETTID, [0, 0, 0])
+}
+
+pub fn sys_waittid(tid: usize) -> isize {
+    syscall(SYSCALL_WAITTID, [tid, 0, 0])
 }
