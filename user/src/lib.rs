@@ -316,3 +316,10 @@ pub fn sigprocmask(mask: u32) -> isize {
 pub fn sigreturn() -> isize {
     sys_sigreturn()
 }
+
+#[macro_export]
+macro_rules! vload {
+    ($var_ref: expr) => {
+        unsafe { core::intrinsics::volatile_load($var_ref as *const _ as _) }
+    };
+}
