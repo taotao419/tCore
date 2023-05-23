@@ -17,7 +17,7 @@ static mut A: usize = 0;
 static mut FLAG: [bool; 2] = [false; 2];
 // TURN = i 表示轮到线程 i 进入临界区
 static mut TURN: usize = 0;
-const PER_THREAD_DEFAULT: usize = 2000;
+const PER_THREAD_DEFAULT: usize = 4000;
 const THREAD_COUNT_DEFAULT: usize = 2;
 static mut PER_THREAD: usize = 0;
 
@@ -31,9 +31,12 @@ unsafe fn critical_section(t: &mut usize) {
 }
 // id 表示当前的线程 ID , 为 0 或 1
 unsafe fn lock(id: usize) {
-    FLAG[id] = true;
     let j = 1 - id;
     TURN = j;
+    for _ in 0..500 {
+        (id) * (id) % 10007;
+    }
+    FLAG[id] = true;
     // 告诉编译器不要重排内存操作
     compiler_fence(Ordering::SeqCst);
     while vload!(&FLAG[j]) && vload!(&TURN) == j {}
@@ -80,7 +83,11 @@ pub fn main(argc: usize, argv: &[&str]) -> i32 {
         waittid(tid);
     }
     println!("time cost is {}ms", get_time() - start);
+    println!(
+        "expected is {}, and actual is {}",
+        unsafe { PER_THREAD } * thread_count,
+        unsafe { A }
+    );
     assert_eq!(unsafe { A }, unsafe { PER_THREAD } * thread_count);
-    println!("result is {}", unsafe { A });
     0
 }

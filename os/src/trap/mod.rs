@@ -21,7 +21,7 @@ use crate::task::{
     current_user_token, exit_current_and_run_next, handle_signals, suspend_current_and_run_next,
     SignalFlags, current_task,
 };
-use crate::timer::set_next_trigger;
+use crate::timer::{set_next_trigger, check_timer};
 use core::arch::{asm, global_asm};
 use riscv::register::{
     mtvec::TrapMode,
@@ -96,6 +96,7 @@ pub fn trap_handler() -> ! {
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             set_next_trigger();
+            check_timer();
             suspend_current_and_run_next();
         }
         _ => {

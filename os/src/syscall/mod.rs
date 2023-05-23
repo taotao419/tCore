@@ -18,6 +18,7 @@ const SYSCALL_WRITE: usize = 64;
 const SYSCALL_GETCWD: usize = 79;
 const SYSCALL_CHDIR: usize = 80;
 const SYSCALL_EXIT: usize = 93;
+const SYSCALL_SLEEP: usize = 101;
 const SYSCALL_YIELD: usize = 124;
 const SYSCALL_KILL: usize = 129;
 const SYSCALL_SIGACTION: usize = 134;
@@ -37,9 +38,11 @@ const SYSCALL_WAITTID: usize = 1002;
 mod fs;
 mod process;
 mod thread;
+mod sync;
 
 use fs::*;
 use process::*;
+use sync::*;
 use thread::*;
 
 use crate::task::SignalAction;
@@ -54,6 +57,7 @@ pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
         SYSCALL_READ => sys_read(args[0], args[1] as *const u8, args[2]),
         SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
         SYSCALL_EXIT => sys_exit(args[0] as i32),
+        SYSCALL_SLEEP => sys_sleep(args[0]),
         SYSCALL_YIELD => sys_yield(),
         SYSCALL_KILL => sys_kill(args[0], args[1] as i32),
         SYSCALL_SIGACTION => sys_sigaction(

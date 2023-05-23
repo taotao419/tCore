@@ -24,7 +24,7 @@ use self::id::TaskUserRes;
 use crate::fs::{open_file, OpenFlags};
 use crate::logger::{self, info, warn};
 use crate::sync::UPSafeCell;
-use crate::timer::get_time_ms;
+use crate::timer::remove_timer;
 use crate::trap::TrapContext;
 use alloc::{sync::Arc, vec::Vec};
 use lazy_static::*;
@@ -35,7 +35,7 @@ use switch::__switch;
 pub use action::{SignalAction, SignalActions};
 pub use context::TaskContext;
 pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle, IDLE_PID};
-pub use manager::{add_task, pid2process, remove_from_pid2process, remove_task};
+pub use manager::{add_task, pid2process, remove_from_pid2process, remove_task, wakeup_task};
 pub use processor::{
     current_kstack_top, current_process, current_task, current_trap_cx, current_trap_cx_user_va,
     current_user_token, run_tasks, schedule, take_current_task, Processor,
@@ -63,6 +63,7 @@ pub fn suspend_current_and_run_next() {
 }
 
 pub fn block_current_and_run_next() {
+    // 从就绪队列里面拿出 , 表明不再运行当前线程
     let task = take_current_task().unwrap();
     let mut task_inner = task.inner_exclusive_access();
     let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
@@ -319,5 +320,5 @@ pub fn handle_signals() {
 
 pub fn remove_inactive_task(task: Arc<TaskControlBlock>) {
     remove_task(Arc::clone(&task));
-    // remove_timer(Arc::clone(&task)); 暂时不要, 是去除锁用的函数.
+    remove_timer(Arc::clone(&task));
 }
