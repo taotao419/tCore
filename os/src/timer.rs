@@ -55,9 +55,10 @@ lazy_static! {
 
 pub fn add_timer(expire_ms: usize, task: Arc<TaskControlBlock>) {
     let mut timers = TIMERS.exclusive_access();
+    let tid = task.inner_exclusive_access().res.as_ref().unwrap().tid;
     println!(
-        "\x1b[34m[SYSCALL] SLEEP add timer -- expire_ms {} ms \x1b[0m",
-        expire_ms
+        "\x1b[34m[SYSCALL] SLEEP add timer -- sleep thread tid [{}] , wake up timing [{}] ms \x1b[0m",
+        tid, expire_ms
     );
     timers.push(TimerCondVar { expire_ms, task });
 }
@@ -80,7 +81,17 @@ pub fn check_timer() {
     let mut timers = TIMERS.exclusive_access();
     while let Some(timer) = timers.peek() {
         if timer.expire_ms <= current_ms {
-            println!("\x1b[34m[SYSCALL] SLEEP check timer -- wake up one thread \x1b[0m");
+            let tid = timer
+                .task
+                .inner_exclusive_access()
+                .res
+                .as_ref()
+                .unwrap()
+                .tid;
+            println!(
+                "\x1b[34m[SYSCALL] SLEEP check timer -- wake up thread tid [{}] \x1b[0m",
+                tid
+            );
             wakeup_task(Arc::clone(&timer.task));
             timers.pop();
         } else {
