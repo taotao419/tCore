@@ -1,7 +1,9 @@
+use core::cmp::Ordering;
+
 use crate::config::CLOCK_FREQ;
 use crate::sbi::set_timer;
 use crate::sync::UPSafeCell;
-use crate::task::{wakeup_task, TaskContext, TaskControlBlock};
+use crate::task::{wakeup_task, TaskControlBlock};
 use alloc::collections::BinaryHeap;
 use alloc::sync::Arc;
 use lazy_static::*;
@@ -34,7 +36,7 @@ impl PartialEq for TimerCondVar {
 }
 impl Eq for TimerCondVar {}
 impl PartialOrd for TimerCondVar {
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         // 这里用负数的原因是 , 二叉堆默认是最大数排在首位. 而我们要的是时间最近(小)的, 先超时需要先 pop.
         let a = -(self.expire_ms as isize);
         let b = -(other.expire_ms as isize);
@@ -43,7 +45,7 @@ impl PartialOrd for TimerCondVar {
 }
 
 impl Ord for TimerCondVar {
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         return self.partial_cmp(other).unwrap();
     }
 }

@@ -1,7 +1,7 @@
 use crate::fs::{File, Stdin, Stdout};
 use crate::logger::info;
 use crate::mm::{translated_refmut, translated_str, MemorySet, KERNEL_SPACE};
-use crate::sync::UPSafeCell;
+use crate::sync::{UPSafeCell, Mutex};
 use crate::trap::{trap_handler, TrapContext};
 
 use super::id::{PidHandle, RecycleAllocator};
@@ -38,6 +38,7 @@ pub struct ProcessControlBlockInner {
     pub frozen: bool,                  // if the task is frozen by a signal
     pub tasks: Vec<Option<Arc<TaskControlBlock>>>,
     pub task_res_allocator: RecycleAllocator,
+    pub mutex_list: Vec<Option<Arc<dyn Mutex>>>,
 }
 
 impl ProcessControlBlockInner {
@@ -105,6 +106,7 @@ impl ProcessControlBlock {
                     frozen: false,
                     tasks: Vec::new(),
                     task_res_allocator: RecycleAllocator::new(),
+                    mutex_list: Vec::new(),
                 })
             },
         });
@@ -271,6 +273,7 @@ impl ProcessControlBlock {
                     frozen: false,
                     tasks: Vec::new(),
                     task_res_allocator: RecycleAllocator::new(),
+                    mutex_list: Vec::new(), //必须置空, 因为fork时候多线程只保留唯一一个线程. 其他线程如果持有锁. 那个锁就再也没人去解了.
                 })
             },
         });
