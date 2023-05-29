@@ -58,20 +58,22 @@ lazy_static! {
     };
 }
 
-/// List all files in the file systems
+/// List all files in the file systems, sort by file name.
 pub fn list_files(path: &str) {
     println!("/**** Files ****");
-    for fileName in ROOT_INODE.find(path).unwrap().ls() {
+    let mut file_list=ROOT_INODE.find(path).unwrap().ls();
+    file_list.sort();
+    for file_name in file_list{
         let mut path_file=path.to_owned();
         if path.ends_with('/'){
-            path_file.push_str(fileName.as_str());
+            path_file.push_str(file_name.as_str());
         }else{
             path_file.push_str("/");
-            path_file.push_str(fileName.as_str());
+            path_file.push_str(file_name.as_str());
         }
        
         let file = ROOT_INODE.find(path_file.as_str()).unwrap();
-        println!("{}    [{} Bytes]", fileName, file.get_inode_size());
+        println!("{}    [{} Bytes]", file_name, file.get_inode_size());
     }
     println!("**************/");
 }
