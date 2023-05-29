@@ -1,7 +1,7 @@
 use crate::fs::{File, Stdin, Stdout};
 use crate::logger::info;
 use crate::mm::{translated_refmut, translated_str, MemorySet, KERNEL_SPACE};
-use crate::sync::{UPSafeCell, Mutex};
+use crate::sync::{UPSafeCell, Mutex, Semaphore};
 use crate::trap::{trap_handler, TrapContext};
 
 use super::id::{PidHandle, RecycleAllocator};
@@ -39,6 +39,7 @@ pub struct ProcessControlBlockInner {
     pub tasks: Vec<Option<Arc<TaskControlBlock>>>,
     pub task_res_allocator: RecycleAllocator,
     pub mutex_list: Vec<Option<Arc<dyn Mutex>>>,
+    pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
 }
 
 impl ProcessControlBlockInner {
@@ -107,6 +108,7 @@ impl ProcessControlBlock {
                     tasks: Vec::new(),
                     task_res_allocator: RecycleAllocator::new(),
                     mutex_list: Vec::new(),
+                    semaphore_list: Vec::new(),
                 })
             },
         });
@@ -274,6 +276,7 @@ impl ProcessControlBlock {
                     tasks: Vec::new(),
                     task_res_allocator: RecycleAllocator::new(),
                     mutex_list: Vec::new(), //必须置空, 因为fork时候多线程只保留唯一一个线程. 其他线程如果持有锁. 那个锁就再也没人去解了.
+                    semaphore_list: Vec::new(), //同上
                 })
             },
         });

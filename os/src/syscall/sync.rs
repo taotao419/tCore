@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 
-use crate::sync::{Mutex, MutexSpin, MutexBlocking};
+use crate::sync::{Mutex, MutexBlocking, MutexSpin, Semaphore};
 use crate::task::{block_current_and_run_next, current_process, current_task};
 use crate::timer::{add_timer, get_time_ms};
 
@@ -52,5 +52,47 @@ pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
     drop(process_inner);
     drop(process);
     mutex.unlock(); //核心就这么一句话, 根据mutex_id 取出 mutex , 执行下 unlock 方法
+    return 0;
+}
+
+pub fn sys_semaphore_create(res_count: usize) -> isize {
+    let process = current_process();
+    let mut process_inner = process.inner_exclusive_access();
+    // 通用逻辑, 如果这个列表中挑出第一个空巢 empty slot, 返回这个空巢的id
+    // 如果列表全部是满的, 那么在尾部 append 一个元素 , 列表长度作为id 返回
+    let id = if let Some(id) = process_inner
+        .semaphore_list
+        .iter()
+        .enumerate()
+        .find(|(_, item)| item.is_none())
+        .map(|(id, _)| id)
+    {
+        process_inner.semaphore_list[id] = Some(Arc::new(Semaphore::new(res_count)));
+        id
+    } else {
+        process_inner
+            .semaphore_list
+            .push(Some(Arc::new(Semaphore::new(res_count))));
+        process_inner.semaphore_list.len() - 1
+    };
+
+    return id as isize;
+}
+
+pub fn sys_semaphore_up(sem_id: usize) -> isize {
+    let process = current_process();
+    let mut process_inner = process.inner_exclusive_access();
+    let sem =Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
+    drop(process_inner);
+    sem.up();
+    return 0;
+}
+
+pub fn sys_semaphore_down(sem_id: usize) -> isize {
+    let process = current_process();
+    let mut process_inner = process.inner_exclusive_access();
+    let sem =Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
+    drop(process_inner);
+    sem.down();
     return 0;
 }
