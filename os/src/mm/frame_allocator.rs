@@ -2,7 +2,6 @@
 //! controls all the frames in the operating system.
 
 use super::{PhysAddr, PhysPageNum};
-use crate::logger::info2;
 use crate::config::MEMORY_END;
 use crate::sync::UPSafeCell;
 use alloc::vec::Vec;
@@ -55,7 +54,7 @@ impl StackFrameAllocator {
         self.current = l.0;
         self.end = r.0;
 
-        println!("[KERNEL] FRAME_ALLOCATOR init, [{:#x},{:#x})", self.current, self.end);
+        log!("[KERNEL] FRAME_ALLOCATOR init, [{:#x},{:#x})", self.current, self.end);
     }
 }
 impl FrameAllocator for StackFrameAllocator {

@@ -92,7 +92,7 @@ impl PageTable {
             if !pte.is_valid() {
                 let frame = frame_alloc().unwrap();
                 *pte = PageTableEntry::new(frame.ppn, PTEFlags::V);
-                // println!( "[KERNEL] Page Table Entry frames push new frame [{:#?}]", frame);
+                // log!( "[KERNEL] Page Table Entry frames push new frame [{:#?}]", frame);
                 self.frames.push(frame);
             }
             ppn = pte.ppn();
@@ -133,9 +133,9 @@ impl PageTable {
     }
     pub fn translate_va(&self, va: VirtAddr) -> Option<PhysAddr> {
         self.find_pte(va.clone().floor()).map(|pte| {
-            //println!("translate_va:va = {:?}", va);
+            //log!("translate_va:va = {:?}", va);
             let aligned_pa: PhysAddr = pte.ppn().into();
-            //println!("translate_va:pa_align = {:?}", aligned_pa);
+            //log!("translate_va:pa_align = {:?}", aligned_pa);
             let offset = va.page_offset();
             let aligned_pa_usize: usize = aligned_pa.into();
             (aligned_pa_usize + offset).into()
@@ -201,10 +201,10 @@ pub fn translated_ref<T>(token: usize, ptr: *const T) -> &'static T {
 ///translate a generic through page table and return a mutable reference
 /// 同上, 只是变成T type类型的实例(可读可写)
 pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
-    //println!("into translated_refmut!");
+    //log!("into translated_refmut!");
     let page_table = PageTable::from_token(token);
     let va = ptr as usize;
-    //println!("translated_refmut: before translate_va");
+    //log!("translated_refmut: before translate_va");
     page_table
         .translate_va(VirtAddr::from(va))
         .unwrap()

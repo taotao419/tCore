@@ -40,7 +40,7 @@ pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
     );
     (*new_task_trap_cx).x[10] = arg;
 
-    println!( "\x1b[35m[SYSCALL] Create Thread [{:?}] \x1b[0m", new_task_inner);
+    log!( "\x1b[35m[SYSCALL] Create Thread [{:?}] \x1b[0m", new_task_inner);
 
     new_task_tid as isize
 }
@@ -78,7 +78,7 @@ pub fn sys_waittid(tid: usize) -> i32 {
         return -1;
     }
     if let Some(exit_code) = exit_code {
-        println!( "\x1b[35m[SYSCALL] Thread wait 主线程销毁其他线程 tid[{}] \x1b[0m", tid);
+        log!( "\x1b[35m[SYSCALL] Thread wait 主线程销毁其他线程 tid[{}] \x1b[0m", tid);
         // dealloc the exited thread
         process_inner.tasks[tid] = None;
         exit_code

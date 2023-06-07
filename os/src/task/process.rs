@@ -1,5 +1,4 @@
 use crate::fs::{File, Stdin, Stdout};
-use crate::logger::info;
 use crate::mm::{translated_refmut, translated_str, MemorySet, KERNEL_SPACE};
 use crate::sync::{UPSafeCell, Mutex, Semaphore, Condvar};
 use crate::trap::{trap_handler, TrapContext};
@@ -142,7 +141,7 @@ impl ProcessControlBlock {
         // add main thread to scheduler
         add_task(task);
 
-        info("App name : init_proc , Process id : ", &process.pid.0);
+        log!("App name : init_proc , Process id : [{}]", &process.pid.0);
         return process;
     }
 
@@ -173,7 +172,7 @@ impl ProcessControlBlock {
         // 1 usize == 8 bytes
 
         let mut user_sp = task_inner.res.as_mut().unwrap().ustack_top();
-        println!(
+        log!(
             "\x1b[32m[SYSCALL : exec] original user_sp : [{}] \x1b[0m",
             user_sp
         );
@@ -202,14 +201,14 @@ impl ProcessControlBlock {
             }
 
             *translated_refmut(new_token, p as *mut u8) = 0; //把\0压入栈里,方便应用知道哪里是字符串结尾
-            println!(
+            log!(
                 "\x1b[32m[SYSCALL : exec] argv[{}] point [{}] ==> string [{}]    \x1b[0m",
                 i,
                 argv[i],
                 translated_str(new_token, *argv[i] as *const u8)
             );
         }
-        println!(
+        log!(
             "\x1b[32m[SYSCALL : exec] user stack argv array -- [{:?}] \x1b[0m",
             argv
         );
@@ -227,15 +226,11 @@ impl ProcessControlBlock {
         trap_cx.x[11] = argv_base; // x11(a1)寄存器, 函数入参2寄存器 传如argv_base 具体位置看上面注释图 读取argv[0]/argv[1]/argv[2]
         *task_inner.get_trap_cx() = trap_cx;
 
-        println!(
+        log!(
             "\x1b[32m[SYSCALL : exec] now user_sp : [{}] \x1b[0m",
             user_sp
         );
-        info("[KERNEL] EXEC Process id : ", &self.getpid());
-        info(
-            "[KERNEL] EXEC App name : ",
-            &self.inner.exclusive_access().app_name,
-        );
+        log!("[KERNEL] EXEC Process id : [{}] App name : [{}]", &self.getpid(), &self.inner.exclusive_access().app_name);
     }
 
     /// Only support process with a single thread.
@@ -311,8 +306,8 @@ impl ProcessControlBlock {
         insert_into_pid2process(child.getpid(), Arc::clone(&child));
 
         // **** access children PCB exclusively
-        info("[KERNEL] Fork parent Process id : ", &self.getpid());
-        info("[KERNEL] Fork new process id : ", &child.getpid());
+        log!("[KERNEL] Fork parent Process id : [{}]", &self.getpid());
+        log!("[KERNEL] Fork new process id : [{}]", &child.getpid());
         //add this thread to scheduler
         add_task(task);
         return child;

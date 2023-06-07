@@ -1,4 +1,6 @@
-use super::{read,write};
+use crate::LOG_FLAG;
+
+use super::{read, write};
 use core::fmt::{self, Write};
 
 struct Stdout;
@@ -17,6 +19,12 @@ pub fn print(args: fmt::Arguments) {
     Stdout.write_fmt(args).unwrap();
 }
 
+pub fn log(args: fmt::Arguments) {
+    if LOG_FLAG {
+        Stdout.write_fmt(args).unwrap();
+    }
+}
+
 #[macro_export]
 macro_rules! print {
     ($fmt: literal $(, $($arg: tt)+)?) => {
@@ -28,6 +36,13 @@ macro_rules! print {
 macro_rules! println {
     ($fmt: literal $(, $($arg: tt)+)?) => {
         $crate::console::print(format_args!(concat!($fmt, "\n") $(, $($arg)+)?));
+    }
+}
+
+#[macro_export]
+macro_rules! info {
+    ($fmt: literal $(, $($arg: tt)+)?) => {
+        $crate::console::log(col,format_args!(concat!("[INFO] ",$fmt, "\n") $(, $($arg)+)?));
     }
 }
 

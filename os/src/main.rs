@@ -41,7 +41,6 @@ mod drivers;
 pub mod fs;
 pub mod lang_items;
 pub mod mm;
-mod logger;
 mod sbi;
 pub mod sync;
 pub mod syscall;
@@ -89,16 +88,4 @@ pub fn rust_main() -> ! {
     //trap::enable_interrupt();
     task::run_tasks();
     panic!("Unreachable in rust_main!");
-}
-
-pub fn info(s:&str) {
-    println!("\x1b[34m[INFO] {}\x1b[0m",s); 
-}
-
-pub fn warn(s:&str) {
-    println!("\x1b[93m[WARN] {}\x1b[0m",s); 
-}
-
-pub fn error(s:&str) {
-    println!("\x1b[31m[ERROR] {}\x1b[0m",s); 
 }

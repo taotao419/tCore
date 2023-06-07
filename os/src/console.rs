@@ -33,3 +33,12 @@ macro_rules! println {
         $crate::console::print(format_args!(concat!($fmt, "\n") $(, $($arg)+)?))
     }
 }
+
+#[macro_export]
+macro_rules! log {
+    ($fmt: literal $(, $($arg: tt)+)?) => {
+        if $crate::config::LOG_FLAG {
+            $crate::console::print(format_args!(concat!($fmt, "\n") $(, $($arg)+)?));
+        }
+    }
+}

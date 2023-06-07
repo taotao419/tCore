@@ -17,6 +17,7 @@ use buddy_system_allocator::LockedHeap;
 use syscall::*;
 
 const USER_HEAP_SIZE: usize = 32768;
+const LOG_FLAG: bool = true;
 
 static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];
 
@@ -342,15 +343,15 @@ pub fn semaphore_down(sem_id: usize) {
     sys_semaphore_down(sem_id);
 }
 
-pub fn condvar_create() -> isize{
+pub fn condvar_create() -> isize {
     return sys_condvar_create();
 }
 
-pub fn condvar_signal(condvar_id : usize) {
+pub fn condvar_signal(condvar_id: usize) {
     sys_condvar_signal(condvar_id);
 }
 
-pub fn condvar_wait(condvar_id: usize, mutex_id: usize){
+pub fn condvar_wait(condvar_id: usize, mutex_id: usize) {
     sys_condvar_wait(condvar_id, mutex_id);
 }
 

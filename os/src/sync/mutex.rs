@@ -86,13 +86,13 @@ impl Mutex for MutexBlocking {
                 .as_ref()
                 .unwrap()
                 .tid;
-            println!("\x1b[34m[LOCK] thread locked tid [{}] \x1b[0m", tid);
+            log!("\x1b[34m[LOCK] thread locked tid [{}] \x1b[0m", tid);
             drop(tid);
             mutex_inner.wait_queue.push_back(current_task().unwrap()); //发现锁住了, 当前线程就进入blocked状态
             drop(mutex_inner);
             block_current_and_run_next();
         } else {
-            println!("\x1b[34m[LOCK] 已经上锁 \x1b[0m" );
+            log!("\x1b[34m[LOCK] 已经上锁 \x1b[0m" );
             mutex_inner.locked = true;
         }
     }
@@ -104,7 +104,7 @@ impl Mutex for MutexBlocking {
             //一个公平队列, 只唤醒最早进入blocked的线程
             wakeup_task(waking_task); //一个线程唤醒下一个线程. 所以每次只唤醒一个线程.
         } else {
-            println!("\x1b[34m[UNLOCK] 锁现在已经打开 \x1b[0m");
+            log!("\x1b[34m[UNLOCK] 锁现在已经打开 \x1b[0m");
             mutex_inner.locked = false; //没有等待这个锁的线程的话, 这个锁状态为打开
         }
     }

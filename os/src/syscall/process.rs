@@ -155,7 +155,7 @@ pub fn sys_kill(pid: usize, signum: i32) -> isize {
                 return -1;
             }
             task_ref.signals.insert(flag); //在未处理信号集合中插入此信号
-            println!(
+            log!(
                 "\x1b[38;5;208m[SYSCALL : kill] 给程序Pid [{}] 发送信号 Signum [{}] Signals in Process [{:?}]  \x1b[0m",
                 pid, signum, task_ref.signals
             );
@@ -196,7 +196,7 @@ pub fn sys_sigreturn() -> isize {
         // restore the trap context
         let trap_ctx = task_inner.get_trap_cx();
         *trap_ctx = task_inner.trap_ctx_backup.unwrap();
-        println!(
+        log!(
             "\x1b[38;5;208m[SYSCALL : SIGRETURN] 程序 [{}]  执行SYS_SIGRETURN系统调用 \x1b[0m",
             process.getpid()
         );
@@ -244,7 +244,7 @@ pub fn sys_sigaction(
         let prev_action = process_inner.signal_actions.table[signum as usize];
         *translated_refmut(token, old_action) = prev_action; //prev_action函数指针 赋值给old_action. 由于是跨虚拟内存空间操作, 需要用translated_refmut
         process_inner.signal_actions.table[signum as usize] = *translated_ref(token, action); //这也是跨虚拟内存, 本质就是把action函数指针赋值到PCB的信号对应callback函数表.
-        println!("\x1b[38;5;208m[SYSCALL : sigaction] 程序 [{}]  信号 [{}] mapping 回调函数 [{:?}]   \x1b[0m",process.getpid(),signum,action);
+        log!("\x1b[38;5;208m[SYSCALL : sigaction] 程序 [{}]  信号 [{}] mapping 回调函数 [{:?}]   \x1b[0m",process.getpid(),signum,action);
         return 0;
     } else {
         return -1;

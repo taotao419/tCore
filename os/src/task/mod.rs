@@ -22,7 +22,6 @@ mod task;
 
 use self::id::TaskUserRes;
 use crate::fs::{open_file, OpenFlags};
-use crate::logger::{self, info, warn};
 use crate::sync::UPSafeCell;
 use crate::timer::remove_timer;
 use crate::trap::TrapContext;
@@ -87,7 +86,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
     drop(task);
     // 如果是当前进程的主线程, 则此进程立即终止
     if tid == 0 {
-        println!( "\x1b[35m[THREAD] 主线程开始退出 \x1b[0m");
+        log!( "\x1b[35m[THREAD] 主线程开始退出 \x1b[0m");
         let pid = process.getpid();
         if pid == IDLE_PID {
             println!(
@@ -186,7 +185,7 @@ pub fn current_add_signal(signal: SignalFlags) {
                                      //  000110
                                      //  000001
                                      //=>000111
-    println!(
+    log!(
         "\x1b[38;5;208m[TRAP] 现在进程[{}] 插入信号[{:?}] \x1b[0m",
         process.getpid(),
         process_inner.signals
@@ -222,7 +221,7 @@ fn call_kernel_signal_handler(signal: SignalFlags) {
             process_inner.killed = true;
         }
     }
-    println!(
+    log!(
         "\x1b[38;5;208m[TRAP] 关键信号由核心处理 Signal [{:?}] frozen [{}] killed [{}]  \x1b[0m",
         signal, process_inner.frozen, process_inner.killed
     );
@@ -247,10 +246,10 @@ fn call_user_signal_handler(sig: usize, signal: SignalFlags) {
         trap_ctx.sepc = handler;
         //put args (a0) first input param
         trap_ctx.x[10] = sig;
-        println!("\x1b[38;5;208m[TRAP] 进程[{}] 调用应用程序自定义的信号回调函数, sig [{}] handler [{}] \x1b[0m",process.getpid(),sig,handler);
+        log!("\x1b[38;5;208m[TRAP] 进程[{}] 调用应用程序自定义的信号回调函数, sig [{}] handler [{}] \x1b[0m",process.getpid(),sig,handler);
     } else {
         // default action
-        println!("[K] task/call_user_signal_handler: default action: ignore it or kill process");
+        log!("[K] task/call_user_signal_handler: default action: ignore it or kill process");
     }
 }
 
