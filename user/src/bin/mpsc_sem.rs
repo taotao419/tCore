@@ -13,18 +13,20 @@ const SEM_MUTEX: usize = 0;
 const SEM_PRODUCE: usize = 1;
 const SEM_CONSUME: usize = 2;
 const BUFFER_SIZE: usize = 8;
-static mut BUFFER: [usize; BUFFER_SIZE] = [0; BUFFER_SIZE];
+static mut BUFFER: [char; BUFFER_SIZE] = ['X'; BUFFER_SIZE];
 static mut FRONT: usize = 0;
 static mut TAIL: usize = 0;
+
 const PRODUCER_COUNT: usize = 4;
 const NUMBER_PER_PRODUCER: usize = 100;
+const THREAD_CODES: [char; 4] = ['A', 'B', 'C', 'D'];
 
 unsafe fn producer(id: *const usize) -> ! {
     let id = *id;
     for _ in 0..NUMBER_PER_PRODUCER {
         semaphore_down(SEM_PRODUCE); //生产许可数 减一
         semaphore_down(SEM_MUTEX); //上锁
-        BUFFER[TAIL] = id;
+        BUFFER[TAIL] = THREAD_CODES[id];
         TAIL = (TAIL + 1) % BUFFER_SIZE;
         semaphore_up(SEM_MUTEX); //解锁
         semaphore_up(SEM_CONSUME); //消费许可数 加一
@@ -32,7 +34,7 @@ unsafe fn producer(id: *const usize) -> ! {
     exit(0)
 }
 
-unsafe fn comsumer() -> ! {
+unsafe fn consumer() -> ! {
     for _ in 0..PRODUCER_COUNT * NUMBER_PER_PRODUCER {
         semaphore_down(SEM_CONSUME); //消费许可数 减一
         semaphore_down(SEM_MUTEX); // LOCK
@@ -50,6 +52,7 @@ pub fn main() -> i32 {
     assert_eq!(semaphore_create(1) as usize, SEM_MUTEX);
     assert_eq!(semaphore_create(BUFFER_SIZE) as usize, SEM_PRODUCE);
     assert_eq!(semaphore_create(0) as usize, SEM_CONSUME);
+    println!("first char of THREAD_CODES is [{}]", THREAD_CODES[0]);
 
     let ids: Vec<_> = (0..PRODUCER_COUNT).collect();
     let mut threads = Vec::new();
@@ -61,7 +64,7 @@ pub fn main() -> i32 {
     }
     threads.push(thread_create(consumer as usize, 0));
     // wait for all threads to complete 也就是主线程等其他线程 即join
-    for thread in threads.iter(){
+    for thread in threads.iter() {
         waittid(*thread as usize);
     }
     println!("mpsc_sem passed!");
