@@ -117,7 +117,7 @@ pub fn sys_condvar_create() -> isize {
             .push(Some(Arc::new(Condvar::new())));
         process_inner.condvar_list.len() - 1
     };
-
+    log!("\x1b[38;5;208m[SYSCALL : Condvar] 条件变量创建 id [{}]  \x1b[0m",id);
     return id as isize;
 }
 
@@ -127,6 +127,7 @@ pub fn sys_condvar_signal(condvar_id: usize) -> isize {
     let condvar = Arc::clone(process_inner.condvar_list[condvar_id].as_ref().unwrap());
     drop(process_inner);
     condvar.signal();
+    log!("\x1b[38;5;208m[SYSCALL : Condvar] 条件变量通知 id [{}]  \x1b[0m",condvar_id);
     return 0;
 }
 
@@ -136,6 +137,7 @@ pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
     let condvar = Arc::clone(process_inner.condvar_list[condvar_id].as_ref().unwrap());
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
     drop(process_inner);
+    log!("\x1b[38;5;208m[SYSCALL : Condvar] 条件变量等待 condvar_id [{}] , mutex_id [{}]  \x1b[0m",condvar_id, mutex_id);
     condvar.wait(mutex);
     return 0;
 }
