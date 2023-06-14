@@ -355,6 +355,10 @@ pub fn condvar_wait(condvar_id: usize, mutex_id: usize) {
     sys_condvar_wait(condvar_id, mutex_id);
 }
 
+pub fn condvar_signal_all(condvar_id: usize) {
+    sys_condvar_signal_all(condvar_id);
+}
+
 #[macro_export]
 macro_rules! vload {
     ($var_ref: expr) => {

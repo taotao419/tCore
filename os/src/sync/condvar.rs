@@ -30,6 +30,14 @@ impl Condvar {
         }
     }
 
+
+    pub fn signal_all(&self) {
+        let mut inner = self.inner.exclusive_access();
+        while let Some(task) = inner.wait_queue.pop_front() {
+            wakeup_task(task);
+        }
+    }
+
     pub fn wait(&self, mutex: Arc<dyn Mutex>) {
         mutex.unlock();
         let mut inner = self.inner.exclusive_access(); // lock and get

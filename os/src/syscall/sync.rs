@@ -131,6 +131,16 @@ pub fn sys_condvar_signal(condvar_id: usize) -> isize {
     return 0;
 }
 
+pub fn sys_condvar_signal_all(condvar_id: usize) -> isize {
+    let process = current_process();
+    let mut process_inner = process.inner_exclusive_access();
+    let condvar = Arc::clone(process_inner.condvar_list[condvar_id].as_ref().unwrap());
+    drop(process_inner);
+    condvar.signal_all();
+    log!("\x1b[38;5;208m[SYSCALL : Condvar] 条件变量通知所有被阻塞线程 id [{}]  \x1b[0m",condvar_id);
+    return 0;
+}
+
 pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
     let process = current_process();
     let mut process_inner = process.inner_exclusive_access();

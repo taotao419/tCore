@@ -43,6 +43,7 @@ const SYSCALL_SEMAPHORE_DOWN: usize = 1022;
 const SYSCALL_CONDVAR_CREATE: usize = 1030;
 const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
 const SYSCALL_CONDVAR_WAIT: usize = 1032;
+const SYSCALL_CONDVAR_SIGNAL_ALL: usize = 1033;
 
 mod fs;
 mod process;
@@ -97,6 +98,7 @@ pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
         SYSCALL_CONDVAR_CREATE => sys_condvar_create(),
         SYSCALL_CONDVAR_SIGNAL => sys_condvar_signal(args[0]),
         SYSCALL_CONDVAR_WAIT => sys_condvar_wait(args[0], args[1]),
+        SYSCALL_CONDVAR_SIGNAL_ALL => sys_condvar_signal_all(args[0]),
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     }
 }

@@ -36,6 +36,7 @@ const SYSCALL_SEMAPHORE_DOWN: usize = 1022;
 const SYSCALL_CONDVAR_CREATE: usize = 1030;
 const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
 const SYSCALL_CONDVAR_WAIT: usize = 1032;
+const SYSCALL_CONDVAR_SIGNAL_ALL: usize = 1033;
 
 // _start: addi  a0, x0, 1      # 1 = StdOut
 //         la    a1, helloworld # load address of helloworld
@@ -206,4 +207,8 @@ pub fn sys_condvar_signal(condvar_id: usize) -> isize {
 
 pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
     syscall(SYSCALL_CONDVAR_WAIT, [condvar_id, mutex_id, 0])
+}
+
+pub fn sys_condvar_signal_all(condvar_id: usize) -> isize {
+    syscall(SYSCALL_CONDVAR_SIGNAL_ALL, [condvar_id, 0, 0])
 }
