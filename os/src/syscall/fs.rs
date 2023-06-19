@@ -1,8 +1,10 @@
 //! File and filesystem-related syscalls
 
-use crate::fs::{make_pipe, open_file, OpenFlags};
+use crate::fs::{eventfd_create, make_pipe, open_file, Eventfd, EventfdFlags, OpenFlags};
 use crate::mm::{translated_byte_buffer, translated_refmut, translated_str, UserBuffer};
-use crate::task::{current_process,current_task, current_user_token, suspend_current_and_run_next};
+use crate::task::{
+    current_process, current_task, current_user_token, suspend_current_and_run_next,
+};
 use alloc::sync::Arc;
 
 /// write buf of length `len`  to a file with `fd`
@@ -106,6 +108,29 @@ pub fn sys_dup(fd: usize) -> isize {
     }
     let new_fd = inner.alloc_fd(); // 申请一个新的文件描述符
     inner.fd_table[new_fd] = Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap())); // 新的文件描述符指向的还是老的文件描述符指向的文件
-    log!("\x1b[38;5;208m[SYSCALL : dup pipe] clone fd [{}] ==> new fd [{}]  \x1b[0m",fd, new_fd);
+    log!(
+        "\x1b[38;5;208m[SYSCALL : dup pipe] clone fd [{}] ==> new fd [{}]  \x1b[0m",
+        fd,
+        new_fd
+    );
     return new_fd as isize;
+}
+
+pub fn sys_eventfd(initval: u32, flags: u32) -> isize {
+    let process = current_process();
+    if let Some(eventfd) = eventfd_create(initval as usize, EventfdFlags::from_bits(flags).unwrap())
+    {
+        let mut inner = process.inner_exclusive_access();
+        let fd = inner.alloc_fd(); // 申请一个新的文件描述符
+        inner.fd_table[fd] = Some(eventfd);
+        log!(
+            "\x1b[38;5;208m[SYSCALL : eventfd] create eventfd  [{}]  \x1b[0m",
+            fd
+        );
+        fd as isize
+    } else {
+        return -1;
+    }
+    //flag 不合法 返回 -1
+    //创建的文件描述符数量超过进程限制  返回 -1
 }

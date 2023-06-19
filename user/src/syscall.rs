@@ -23,6 +23,7 @@ const SYSCALL_GETPID: usize = 172;
 const SYSCALL_FORK: usize = 220;
 const SYSCALL_EXEC: usize = 221;
 const SYSCALL_WAITPID: usize = 260;
+const SYSCALL_EVENTFD: usize = 290;
 const SYSCALL_LIST_APPS: usize = 999;
 const SYSCALL_THREAD_CREATE: usize = 1000;
 const SYSCALL_GETTID: usize = 1001;
@@ -211,4 +212,8 @@ pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
 
 pub fn sys_condvar_signal_all(condvar_id: usize) -> isize {
     syscall(SYSCALL_CONDVAR_SIGNAL_ALL, [condvar_id, 0, 0])
+}
+
+pub fn sys_eventfd(initval: u32, flags: u32) -> isize {
+    syscall(SYSCALL_EVENTFD, [initval as usize, flags as usize, 0])
 }

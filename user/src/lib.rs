@@ -81,6 +81,16 @@ bitflags! {
         const CREATE=1<<9; //第9位 设置为1 创建文件
         const TRUNC=1<<10; //第10位 设置为1 清空文件内容 并将该文件的大小归零
     }
+
+
+}
+
+bitflags! {
+    pub struct EventfdFlags:u32{
+        const DEFAULT = 0;
+        const SEMAPHORE = 1<<0;
+        const NONBLOCK = 1<<11;
+    }
 }
 
 pub fn dup(fd: usize) -> isize {
@@ -357,6 +367,10 @@ pub fn condvar_wait(condvar_id: usize, mutex_id: usize) {
 
 pub fn condvar_signal_all(condvar_id: usize) {
     sys_condvar_signal_all(condvar_id);
+}
+
+pub fn eventfd(initval: u32, flags: EventfdFlags) -> isize {
+    sys_eventfd(initval, flags.bits)
 }
 
 #[macro_export]

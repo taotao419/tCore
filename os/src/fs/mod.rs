@@ -2,6 +2,7 @@
 mod inode;
 mod pipe;
 mod stdio;
+mod eventfd;
 
 use crate::mm::UserBuffer;
 use core::fmt::Debug;
@@ -20,6 +21,7 @@ pub trait File: Send + Sync {
 pub use inode::{list_files, open_file, OSInode, OpenFlags};
 pub use pipe::{make_pipe, Pipe};
 pub use stdio::{Stdin, Stdout};
+pub use eventfd::{eventfd_create,Eventfd, EventfdFlags};
 
 impl Debug for dyn File + Send + Sync {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
