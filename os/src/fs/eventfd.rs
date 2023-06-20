@@ -45,13 +45,6 @@ impl Eventfd {
             },
         }
     }
-
-    pub fn signal_all(&self) {
-        let mut inner = self.inner.exclusive_access();
-        while let Some(task) = inner.wait_queue.pop_front() {
-            wakeup_task(task);
-        }
-    }
 }
 
 pub fn eventfd_create(initval: usize, flags: EventfdFlags) -> Option<Arc<Eventfd>> {
@@ -85,11 +78,9 @@ impl File for Eventfd {
     }
 
     fn read(&self, buf: UserBuffer) -> usize {
-        let mut inner = self.inner.exclusive_access(); //lock I
-        let count = inner.count as u32;
-        drop(inner); //unlock I
-        log!("start eventfd read count [{}]", count);
-        if count == 0 {
+        let mut count = self.inner.exclusive_access().count as u32;
+        while count == 0 {
+            log!("\x1b[38;5;208m[KERNEL EVENTFD] READ count=[0]\x1b[0m");
             if self.non_block == true {
                 println!("Non block mode , no resource");
                 return 0;
@@ -97,30 +88,31 @@ impl File for Eventfd {
                 let mut inner = self.inner.exclusive_access(); //lock II
                 inner.wait_queue.push_back(current_task().unwrap());
                 drop(inner); // unlock II
+                log!("\x1b[38;5;208m[KERNEL EVENTFD] count == 0 ,block current thread\x1b[0m");
                 block_current_and_run_next();
+                count = self.inner.exclusive_access().count as u32;
             }
         }
 
-        // 线程堵塞后又开始继续执行的情况
-        if count > 0 {
-            let mut bytes: [u8; U32_BYTE_SIZE] = [0; U32_BYTE_SIZE];
-            let mut inner = self.inner.exclusive_access(); //lock III
-            if self.semaphore == true {
-                //if semephoe == true return &buf = 1 and counter--
-                bytes = (1 as u32).to_be_bytes();
-                inner.count = inner.count - 1;
-            } else {
-                //if semephoe == false return &buf = counter and counter = 0
-                bytes = count.to_be_bytes(); //默认大端字节序列
-                inner.count = 0;
-            }
+        // 线程堵塞后又开始继续执行的情况 or count > 0
+        log!( "\x1b[38;5;208m[KERNEL EVENTFD] READ count=[{}]\x1b[0m", count);
+        let mut bytes: [u8; U32_BYTE_SIZE] = [0; U32_BYTE_SIZE];
+        let mut inner = self.inner.exclusive_access(); //lock III
+        if self.semaphore == true {
+            //if semephoe == true return &buf = 1 and counter--
+            bytes = (1 as u32).to_be_bytes();
+            inner.count -= 1;
+        } else {
+            //if semephoe == false return &buf = counter and counter = 0
+            bytes = count.to_be_bytes(); //默认大端字节序列
+            inner.count = 0;
+        }
 
-            let mut buf_iter = buf.into_iter();
-            for i in 0..U32_BYTE_SIZE {
-                if let Some(byte_ref) = buf_iter.next() {
-                    unsafe {
-                        *byte_ref = bytes[i];
-                    }
+        let mut buf_iter = buf.into_iter();
+        for i in 0..U32_BYTE_SIZE {
+            if let Some(byte_ref) = buf_iter.next() {
+                unsafe {
+                    *byte_ref = bytes[i];
                 }
             }
         }
@@ -128,6 +120,31 @@ impl File for Eventfd {
     }
 
     fn write(&self, buf: UserBuffer) -> usize {
-        todo!()
+        assert_eq!(buf.len(), U32_BYTE_SIZE); // 确保buf 长度是 4.
+        let mut inner = self.inner.exclusive_access(); //lock I
+        if self.semaphore == true {
+            inner.count += 1;
+        } else {
+            let mut bytes: [u8; U32_BYTE_SIZE] = [0; U32_BYTE_SIZE];
+            let mut buf_iter = buf.into_iter();
+            for i in 0..U32_BYTE_SIZE {
+                if let Some(byte_ref) = buf_iter.next() {
+                    unsafe {
+                        bytes[i] = *byte_ref;
+                    }
+                }
+            }
+            inner.count = inner.count + u32::from_be_bytes(bytes) as usize;
+            log!(
+                "\x1b[38;5;208m[KERNEL EVENTFD] WRITE count=[{}]\x1b[0m",
+                inner.count
+            );
+        }
+
+        if let Some(task) = inner.wait_queue.pop_front() {
+            wakeup_task(task);
+        }
+
+        return U32_BYTE_SIZE; // 4 bytes & unlock I
     }
 }
