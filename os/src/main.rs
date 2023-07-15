@@ -48,6 +48,9 @@ pub mod task;
 mod timer;
 pub mod trap;
 
+use crate::drivers::chardev::CharDevice;
+use crate::drivers::chardev::UART;
+
 
 global_asm!(include_str!("entry.asm"));
 
@@ -78,10 +81,12 @@ pub fn rust_main() -> ! {
     
 
     mm::init();
+    UART.init();
     mm::remap_test();
     trap::init();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
+    board::device_init();
     fs::list_files("/");
     task::add_initproc();
     println!("after initproc!");

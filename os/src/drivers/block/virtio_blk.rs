@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 use lazy_static::*;
 use virtio_drivers::{Hal, VirtIOBlk, VirtIOHeader};
 
-const VIRTIO0: usize = 0x10001000;
+const VIRTIO0: usize = 0x10008000;
 
 pub struct VirtIOBlock(UPSafeCell<VirtIOBlk<'static, VirtioHal>>);
 

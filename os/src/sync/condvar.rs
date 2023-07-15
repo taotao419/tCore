@@ -1,5 +1,5 @@
 use crate::sync::{Mutex, UPSafeCell};
-use crate::task::{block_current_and_run_next, current_task, wakeup_task, TaskControlBlock};
+use crate::task::{block_current_and_run_next, current_task, wakeup_task, TaskControlBlock, TaskContext};
 use alloc::{collections::VecDeque, sync::Arc};
 
 #[derive(Debug)]
@@ -30,7 +30,6 @@ impl Condvar {
         }
     }
 
-
     pub fn signal_all(&self) {
         let mut inner = self.inner.exclusive_access();
         while let Some(task) = inner.wait_queue.pop_front() {
@@ -45,5 +44,9 @@ impl Condvar {
         drop(inner); // unlock inner's lock
         block_current_and_run_next();
         mutex.lock();
+    }
+
+    pub fn wait_no_sched(&self) -> *mut TaskContext {
+        todo!("wait no schedule");
     }
 }
