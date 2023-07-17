@@ -70,6 +70,14 @@ fn clear_bss() {
 #[no_mangle]
 pub fn rust_main() -> ! {
     clear_bss();
+    
+    mm::init();
+    UART.init();
+    mm::remap_test();
+    trap::init();
+    trap::enable_timer_interrupt();
+    timer::set_next_trigger();
+    board::device_init();
 
     println!(r"   _____       _         U  ___ u   _____       _         U  ___ u        U  ___ u   ____     ");
     println!(r"  |_   _|  U  / \  u      \/ _ \/  |_   _|  U  / \  u      \/ _ \/         \/ _ \/  / __| u  ");
@@ -80,13 +88,6 @@ pub fn rust_main() -> ! {
     println!(r" (__) (__) (__)  (__)      (__)   (__) (__) (__)  (__)      (__)            (__)    (__)      ");
     
 
-    mm::init();
-    UART.init();
-    mm::remap_test();
-    trap::init();
-    trap::enable_timer_interrupt();
-    timer::set_next_trigger();
-    board::device_init();
     fs::list_files("/");
     task::add_initproc();
     println!("after initproc!");

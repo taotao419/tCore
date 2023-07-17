@@ -148,7 +148,7 @@ impl<const BASE_ADDR: usize> NS16550a<BASE_ADDR> {
         }
     }
 
-    pub fn read_buffer_is_emptyu(&self) -> bool {
+    pub fn read_buffer_is_empty(&self) -> bool {
         return self
             .inner
             .exclusive_session(|inner| inner.read_buffer.is_empty());
