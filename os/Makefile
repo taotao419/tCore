@@ -12,6 +12,12 @@ BOARD := qemu
 SBI ?= rustsbi
 BOOTLOADER := ../bootloader/$(SBI)-$(BOARD).bin
 
+# GUI
+GUI ?= off
+ifeq ($(GUI), off)
+	GUI_OPTION := -display none
+endif
+
 # Building mode argument
 ifeq ($(MODE), release)
 	MODE_ARG := --release
@@ -30,7 +36,7 @@ DISASM ?= -x
 # Run usertests or usershell
 TEST ?=
 
-build: env $(KERNEL_BIN) fs-img
+build: env $(KERNEL_BIN) fs-img 
 
 env:
 	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
@@ -67,27 +73,36 @@ disasm-vim: kernel
 
 run: run-inner
 
-	
+QEMU_ARGS := -machine virt \
+			 -nographic \
+			 -bios $(BOOTLOADER) \
+			 -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
+			 -drive file=$(FS_IMG),if=none,format=raw,id=x0 \
+			 -device virtio-blk-device,drive=x0 \
+			 -device virtio-gpu-device \
+			 -device virtio-keyboard-device \
+			 -device virtio-mouse-device \
+			 -device virtio-net-device,netdev=net0 \
+			 -netdev user,id=net0,hostfwd=udp::6200-:2000,hostfwd=tcp::6201-:80
+
+fdt:
+	@qemu-system-riscv64 -M 128m -machine virt,dumpdtb=virt.out
+	fdtdump virt.out
 
 run-inner: build
-	@qemu-system-riscv64 \
-		-machine virt \
-		-nographic \
-		-bios $(BOOTLOADER) \
-		-device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
-		-drive file=$(FS_IMG),if=none,format=raw,id=x0 \
-		-device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+	@qemu-system-riscv64 $(QEMU_ARGS)
 
 debug: build
 	@tmux new-session -d \
-		"qemu-system-riscv64 -machine virt -nographic -bios $(BOOTLOADER) -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) -s -S" && \
+		"qemu-system-riscv64 $(QEMU_ARGS) -s -S" && \
 		tmux split-window -h "riscv64-unknown-elf-gdb -ex 'file $(KERNEL_ELF)' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'" && \
 		tmux -2 attach-session -d
 
+
 gdbserver: build
-	@qemu-system-riscv64 -machine virt -nographic -bios $(BOOTLOADER) -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) -s -S
+	@qemu-system-riscv64 $(QEMU_ARGS) -s -S
 
 gdbclient:
 	@riscv64-unknown-elf-gdb -ex 'file $(KERNEL_ELF)' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'
 
-.PHONY: build env kernel clean disasm disasm-vim run-inner fs-img gdbserver gdbclient
+.PHONY: build env kernel clean disasm disasm-vim run-inner fs-img gdbserver gdbclient fdt

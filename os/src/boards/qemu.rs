@@ -19,6 +19,7 @@ pub const VIRT_UART: usize = 0x1000_0000;
 
 use crate::drivers::chardev::{CharDevice, UART};
 use crate::drivers::plic::{IntrTargetPriority, PLIC};
+use crate::drivers::BLOCK_DEVICE;
 
 pub fn device_init() {
     use riscv::register::sie;
@@ -44,7 +45,7 @@ pub fn irq_handler() {
     match intr_src_id {
         // 5 => KEYBOARD_DEVICE.handle_irq(),
         // 6 => MOUSE_DEVICE.handle_irq(),
-        // 8 => BLOCK_DEVICE.handle_irq(),
+        8 => BLOCK_DEVICE.handle_irq(),
         10 => UART.handle_irq(),
         _ => panic!(
             "unsupported IRQ {}  现在只接受5/6/8/10 对应就是鼠标|键盘|磁盘|串口",

@@ -39,6 +39,7 @@ impl Drop for FrameTracker {
 trait FrameAllocator {
     fn new() -> Self;
     fn alloc(&mut self) -> Option<PhysPageNum>;
+    fn alloc_more(&mut self, pages: usize) -> Option<Vec<PhysPageNum>>;
     fn dealloc(&mut self, ppn: PhysPageNum);
 }
 
@@ -54,7 +55,11 @@ impl StackFrameAllocator {
         self.current = l.0;
         self.end = r.0;
 
-        log!("[KERNEL] FRAME_ALLOCATOR init, [{:#x},{:#x})", self.current, self.end);
+        log!(
+            "[KERNEL] FRAME_ALLOCATOR init, [{:#x},{:#x})",
+            self.current,
+            self.end
+        );
     }
 }
 impl FrameAllocator for StackFrameAllocator {
@@ -73,6 +78,17 @@ impl FrameAllocator for StackFrameAllocator {
         } else {
             self.current += 1;
             Some((self.current - 1).into())
+        }
+    }
+    fn alloc_more(&mut self, pages: usize) -> Option<Vec<PhysPageNum>> {
+        if self.current + pages >= self.end {
+            return None; //如果申请的页数加上已使用的页数 超过整个内存页数 返回None
+        } else {
+            self.current += pages;
+            let arr: Vec<usize> = (1..pages + 1).collect();
+            // 有点tricky , 因为pages: usize 和 physPageNum本质都是u64数字, 这里返回[self.上次分配物理页...N个...self.这次分配的物理页] N==pages
+            let v = arr.iter().map(|x| (self.current - x).into()).collect();
+            return Some(v);
         }
     }
     fn dealloc(&mut self, ppn: PhysPageNum) {
@@ -111,6 +127,14 @@ pub fn frame_alloc() -> Option<FrameTracker> {
         .exclusive_access()
         .alloc()
         .map(FrameTracker::new)
+}
+
+/// allocate N frames
+pub fn frame_alloc_more(num: usize) -> Option<Vec<FrameTracker>> {
+    FRAME_ALLOCATOR
+        .exclusive_access()
+        .alloc_more(num)
+        .map(|x| x.iter().map(|&t| FrameTracker::new(t)).collect())
 }
 
 /// deallocate a frame

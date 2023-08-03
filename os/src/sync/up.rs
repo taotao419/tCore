@@ -92,6 +92,7 @@ impl IntrMaskingInfo {
     }
 }
 
+#[derive(Debug)]
 pub struct UPIntrFreeCell<T> {
     /// inner data
     inner: RefCell<T>,

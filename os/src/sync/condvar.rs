@@ -1,10 +1,10 @@
-use crate::sync::{Mutex, UPSafeCell};
-use crate::task::{block_current_and_run_next, current_task, wakeup_task, TaskControlBlock, TaskContext};
+use crate::sync::{Mutex, UPSafeCell,UPIntrFreeCell};
+use crate::task::{block_current_and_run_next, current_task, wakeup_task, TaskControlBlock, TaskContext, block_current_task};
 use alloc::{collections::VecDeque, sync::Arc};
 
 #[derive(Debug)]
 pub struct Condvar {
-    pub inner: UPSafeCell<CondvarInner>,
+    pub inner: UPIntrFreeCell<CondvarInner>,
 }
 
 #[derive(Debug)]
@@ -16,7 +16,7 @@ impl Condvar {
     pub fn new() -> Self {
         Self {
             inner: unsafe {
-                UPSafeCell::new(CondvarInner {
+                UPIntrFreeCell::new(CondvarInner {
                     wait_queue: VecDeque::new(),
                 })
             },
@@ -46,7 +46,11 @@ impl Condvar {
         mutex.lock();
     }
 
+    // 只是单纯把当前 线程/进程 执行状态字段改为 block. 并没有真正把当前 线程/进程 休眠
     pub fn wait_no_sched(&self) -> *mut TaskContext {
-        todo!("wait no schedule");
+        self.inner.exclusive_session(|inner|{
+            inner.wait_queue.push_back(current_task().unwrap());
+        });
+        return block_current_task();
     }
 }

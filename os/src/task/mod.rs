@@ -61,13 +61,18 @@ pub fn suspend_current_and_run_next() {
     schedule(task_cx_ptr); //它会调用__switch 汇编函数(核心函数) 真正切换任务
 }
 
+/// This function MUST be followed by a schedule (因为这个只是单纯状态字段修改了, 但是没有执行它)
+pub fn block_current_task()->*mut TaskContext{
+     // 从就绪队列里面拿出 , 表明不再运行当前线程
+     let task = take_current_task().unwrap();
+     let mut task_inner = task.inner_exclusive_access();
+     task_inner.task_status = TaskStatus::Blocked; 
+     let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
+     return task_cx_ptr;
+}
+
 pub fn block_current_and_run_next() {
-    // 从就绪队列里面拿出 , 表明不再运行当前线程
-    let task = take_current_task().unwrap();
-    let mut task_inner = task.inner_exclusive_access();
-    let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
-    task_inner.task_status = TaskStatus::Blocked;
-    drop(task_inner);
+    let task_cx_ptr = block_current_task();
     schedule(task_cx_ptr);
 }
 

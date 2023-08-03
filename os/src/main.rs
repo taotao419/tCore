@@ -66,11 +66,19 @@ fn clear_bss() {
     }
 }
 
+use lazy_static::*;
+use sync::UPIntrFreeCell;
+
+lazy_static! {
+    pub static ref DEV_NON_BLOCKING_ACCESS: UPIntrFreeCell<bool> =
+        unsafe { UPIntrFreeCell::new(false) };
+}
+
 /// the rust entry-point of os
 #[no_mangle]
 pub fn rust_main() -> ! {
     clear_bss();
-    
+
     mm::init();
     UART.init();
     mm::remap_test();
@@ -90,6 +98,7 @@ pub fn rust_main() -> ! {
 
     fs::list_files("/");
     task::add_initproc();
+    *DEV_NON_BLOCKING_ACCESS.exclusive_access() = true;
     println!("after initproc!");
     //trap::enable_interrupt();
     task::run_tasks();
