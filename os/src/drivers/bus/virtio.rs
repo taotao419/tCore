@@ -9,7 +9,7 @@ use virtio_drivers::Hal;
 
 lazy_static! {
     // 貌似现在并没有代码引用QUEUE_FRAMES
-    static ref QUEUE_FRAMES: UPIntrFreeCell<Vec<FrameTracker>>= unsafe{
+    static ref QUEUE_FRAMES: UPIntrFreeCell<Vec<FrameTracker>> = unsafe{
         UPIntrFreeCell::new(Vec::new())
     };
 }

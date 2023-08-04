@@ -1,11 +1,9 @@
 use super::BlockDevice;
 use crate::drivers::bus::virtio::VirtioHal;
-use crate::sync::{Condvar, UPIntrFreeCell, UPSafeCell};
+use crate::sync::{Condvar, UPIntrFreeCell};
 use crate::task::schedule;
 use crate::DEV_NON_BLOCKING_ACCESS;
 use alloc::collections::BTreeMap;
-use alloc::vec::Vec;
-use lazy_static::*;
 use virtio_drivers::{BlkResp, Hal, RespStatus, VirtIOBlk, VirtIOHeader};
 
 const VIRTIO0: usize = 0x10008000;
@@ -23,7 +21,7 @@ impl BlockDevice for VirtIOBlock {
             let mut resp = BlkResp::default();
             let task_cx_ptr = self.virtio_blk.exclusive_session(|blk| {
                 let token = unsafe { blk.read_block_nb(block_id, buf, &mut resp).unwrap() }; // 这里的token 就是Descriptor链的头元素id
-                return self.condvars.get(&token).unwrap().wait_no_sched(); //将当前线程/进程 加入条件变量的等待队列
+                self.condvars.get(&token).unwrap().wait_no_sched() //将当前线程/进程 加入条件变量的等待队列
             });
             schedule(task_cx_ptr); // 此线程/进程 进入休眠. 直到驱动取出数据 通过条件变量唤醒此线程/进程
             assert_eq!(
@@ -47,7 +45,7 @@ impl BlockDevice for VirtIOBlock {
             let mut resp = BlkResp::default();
             let task_cx_ptr = self.virtio_blk.exclusive_session(|blk| {
                 let token = unsafe { blk.write_block_nb(block_id, buf, &mut resp).unwrap() }; // 这里的token 就是Descriptor链的头元素id
-                return self.condvars.get(&token).unwrap().wait_no_sched();
+                self.condvars.get(&token).unwrap().wait_no_sched()
             });
             schedule(task_cx_ptr); // 此线程/进程 进入休眠. 直到驱动取出数据 通过条件变量唤醒此线程/进程
             assert_eq!(

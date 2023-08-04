@@ -32,8 +32,6 @@ extern crate bitflags;
 #[path = "boards/qemu.rs"]
 mod board;
 
-use core::arch::global_asm;
-
 #[macro_use]
 mod console;
 mod config;
@@ -51,8 +49,7 @@ pub mod trap;
 use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;
 
-
-global_asm!(include_str!("entry.asm"));
+core::arch::global_asm!(include_str!("entry.asm"));
 
 /// clear BSS segment
 fn clear_bss() {

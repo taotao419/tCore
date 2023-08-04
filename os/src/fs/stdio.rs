@@ -3,7 +3,6 @@ use super::File;
 use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;
 use crate::mm::UserBuffer;
-use crate::sbi::console_getchar;
 use crate::task::suspend_current_and_run_next;
 
 ///Standard input

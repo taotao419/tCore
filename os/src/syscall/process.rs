@@ -137,7 +137,7 @@ pub fn sys_list_apps() -> isize {
 }
 
 pub fn sys_shutdown() -> isize {
-    shutdown();
+    shutdown(false);
     return 0;
 }
 

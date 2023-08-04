@@ -22,6 +22,7 @@ mod task;
 
 use self::id::TaskUserRes;
 use crate::fs::{open_file, OpenFlags};
+use crate::sbi::shutdown;
 use crate::sync::UPSafeCell;
 use crate::timer::remove_timer;
 use crate::trap::TrapContext;
@@ -100,10 +101,10 @@ pub fn exit_current_and_run_next(exit_code: i32) {
             );
             if exit_code != 0 {
                 println!("[kernel] user app exit with exit_code {} ...", exit_code);
-                crate::sbi::shutdown()
+                shutdown(true);
             } else {
                 println!("[kernel] user app exit success ...");
-                crate::sbi::shutdown()
+                shutdown(false);
             }
         }
         //移除 Pid<==>process 的mapping

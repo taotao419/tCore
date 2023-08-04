@@ -26,7 +26,7 @@ use core::arch::{asm, global_asm};
 use riscv::register::{
     mtvec::TrapMode,
     scause::{self, Exception, Interrupt, Trap},
-    sie, sstatus, stval, stvec,
+    sie, sscratch,sstatus, stval, stvec,
 };
 
 global_asm!(include_str!("trap.S"));
@@ -39,8 +39,14 @@ pub fn init() {
 //CPU 会跳转到 stvec 所设置的 Trap 处理入口地址，并将当前特权级设置为 S
 //然后从Trap 处理入口地址处开始执行。
 fn set_kernel_trap_entry() {
+    extern "C" {
+        fn __alltraps();
+        fn __alltraps_k();
+    }
+    let __alltraps_k_va = __alltraps_k as usize - __alltraps as usize + TRAMPOLINE;
     unsafe {
-        stvec::write(trap_from_kernel as usize, TrapMode::Direct);
+        stvec::write(__alltraps_k_va, TrapMode::Direct);
+        sscratch::write(trap_from_kernel as usize);
     }
 }
 
