@@ -16,9 +16,11 @@ pub type CharDeviceImpl = crate::drivers::chardev::NS16550a<VIRT_UART>;
 pub const VIRT_PLIC: usize = 0xC00_0000;
 pub const VIRT_UART: usize = 0x1000_0000;
 
+#[macro_use]
 use crate::drivers::chardev::{CharDevice, UART};
 use crate::drivers::plic::{IntrTargetPriority, PLIC};
 use crate::drivers::BLOCK_DEVICE;
+use crate::log;
 
 pub fn device_init() {
     use riscv::register::sie;
@@ -44,7 +46,10 @@ pub fn irq_handler() {
     match intr_src_id {
         // 5 => KEYBOARD_DEVICE.handle_irq(),
         // 6 => MOUSE_DEVICE.handle_irq(),
-        8 => BLOCK_DEVICE.handle_irq(),
+        8 => {
+            log!( "\x1b[35m[qemu: irq_handler] trap_from_kernel call block device handle_irq [{}]  \x1b[0m", intr_src_id);
+            BLOCK_DEVICE.handle_irq()
+        }
         10 => UART.handle_irq(),
         _ => panic!(
             "unsupported IRQ {}  现在只接受5/6/8/10 对应就是鼠标|键盘|磁盘|串口",

@@ -23,6 +23,7 @@ impl BlockDevice for VirtIOBlock {
                 let token = unsafe { blk.read_block_nb(block_id, buf, &mut resp).unwrap() }; // 这里的token 就是Descriptor链的头元素id
                 self.condvars.get(&token).unwrap().wait_no_sched() //将当前线程/进程 加入条件变量的等待队列
             });
+            log!("\x1b[38;5;208m[BLOCK DRIVE: read_block] block id: [{}] , sleep current thread/process  \x1b[0m",block_id);
             schedule(task_cx_ptr); // 此线程/进程 进入休眠. 直到驱动取出数据 通过条件变量唤醒此线程/进程
             assert_eq!(
                 resp.status(),
@@ -65,6 +66,7 @@ impl BlockDevice for VirtIOBlock {
         self.virtio_blk.exclusive_session(|blk| {
             while let Ok(token) = blk.pop_used() {
                 // 唤醒等待该块设备I/O完成的线程/进程
+                log!( "\x1b[35m[BLOCK DRIVE: handle_irq] token [{}]  \x1b[0m", token);
                 self.condvars.get(&token).unwrap().signal();
             }
         });

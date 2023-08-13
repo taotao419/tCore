@@ -180,14 +180,17 @@ pub fn trap_return() -> ! {
 }
 
 #[no_mangle]
+/// handle an interrupt, exception from kenerl space
 pub fn trap_from_kernel(_trap_cx: &TrapContext) {
     let scause = scause::read();
     let stval = stval::read();
     match scause.cause() {
         Trap::Interrupt(Interrupt::SupervisorExternal) => {
+            //PLIC 硬件会发送一个这种类型的中断, 比如磁盘 命令执行完毕
             crate::board::irq_handler();
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
+            //时钟 硬件发送定时中断
             set_next_trigger();
             check_timer();
             // do not schedule now
