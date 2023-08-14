@@ -45,11 +45,14 @@ const SYSCALL_CONDVAR_CREATE: usize = 1030;
 const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
 const SYSCALL_CONDVAR_WAIT: usize = 1032;
 const SYSCALL_CONDVAR_SIGNAL_ALL: usize = 1033;
+const SYSCALL_FRAMEBUFFER:usize=2000;
+const SYSCALL_FRAMEBUFFER_FLUSH:usize=2001;
 
 mod fs;
 mod process;
 mod sync;
 mod thread;
+mod gui;
 
 use fs::*;
 use process::*;

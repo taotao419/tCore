@@ -87,7 +87,7 @@ impl MemorySet {
         }
     }
 
-    fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
+    pub fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
         if let Some(data) = data {
             map_area.copy_data(&mut self.page_table, data);
@@ -189,7 +189,7 @@ impl MemorySet {
                     ((*pair).0 + (*pair).1).into(),
                     MapType::Identical,
                     MapPermission::R | MapPermission::W,
-                    SectionType::Device_Block,
+                    SectionType::Device,
                 ),
                 None,
             );
@@ -260,7 +260,7 @@ impl MemorySet {
         let mut memory_set = Self::new_bare();
         // map trampoline
         memory_set.map_trampoline("from_existed_user");
-        // copy data sections/trap_context/user_stack  
+        // copy data sections/trap_context/user_stack
         for area in user_space.areas.iter() {
             let new_area = MapArea::from_another(area);
             memory_set.push(new_area, None);
@@ -287,7 +287,7 @@ impl MemorySet {
         self.page_table.translate(vpn)
     }
     ///Remove all `MapArea`
-    pub fn recycle_data_pages(&mut self){
+    pub fn recycle_data_pages(&mut self) {
         self.areas.clear();
     }
 }
@@ -340,6 +340,11 @@ impl MapArea {
                 ppn = frame.ppn;
                 self.data_frames.insert(vpn, frame);
             }
+            MapType::Linear(pn_offset) => {
+                //check for sv39
+                assert!(vpn.0 < (1usize << 27));
+                ppn = PhysPageNum((vpn.0 as isize + pn_offset) as usize);
+            }
         }
         let pte_flags = PTEFlags::from_bits(self.map_perm.bits).unwrap();
         page_table.map(vpn, ppn, pte_flags);
@@ -391,6 +396,8 @@ impl MapArea {
 pub enum MapType {
     Identical,
     Framed,
+    /// offset of page num
+    Linear(isize),
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -404,7 +411,7 @@ pub enum SectionType {
     Heap,
     TrapContext,
     Kernel_Stack,
-    Device_Block,
+    Device,
 }
 
 bitflags! {
