@@ -7,6 +7,7 @@
 pub mod console;
 mod lang_items;
 mod syscall;
+mod io;
 
 extern crate alloc;
 #[macro_use]
@@ -14,6 +15,7 @@ extern crate bitflags;
 
 use alloc::vec::Vec;
 use buddy_system_allocator::LockedHeap;
+pub use io::*;
 use syscall::*;
 
 const USER_HEAP_SIZE: usize = 32768;

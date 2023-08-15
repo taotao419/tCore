@@ -39,6 +39,9 @@ const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
 const SYSCALL_CONDVAR_WAIT: usize = 1032;
 const SYSCALL_CONDVAR_SIGNAL_ALL: usize = 1033;
 
+const SYSCALL_FRAMEBUFFER: usize = 2000;
+const SYSCALL_FRAMEBUFFER_FLUSH: usize = 2001;
+
 // _start: addi  a0, x0, 1      # 1 = StdOut
 //         la    a1, helloworld # load address of helloworld
 //         addi  a2, x0, 13     # length of our string
@@ -216,4 +219,12 @@ pub fn sys_condvar_signal_all(condvar_id: usize) -> isize {
 
 pub fn sys_eventfd(initval: u32, flags: u32) -> isize {
     syscall(SYSCALL_EVENTFD, [initval as usize, flags as usize, 0])
+}
+
+pub fn sys_framebuffer() -> isize {
+    syscall(SYSCALL_FRAMEBUFFER, [0, 0, 0])
+}
+
+pub fn sys_framebuffer_flush() -> isize {
+    syscall(SYSCALL_FRAMEBUFFER_FLUSH, [0, 0, 0])
 }
