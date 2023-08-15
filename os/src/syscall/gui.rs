@@ -1,30 +1,33 @@
 use crate::drivers::gpu::GPU_DEVICE;
-use crate::mm::{MapArea, MapPermission, MapType, PhysAddr, SectionType, VirtAddr};
+use crate::mm::{MapArea, MapPermission, MapType, PPNRange, PhysAddr, SectionType, VirtAddr};
 use crate::task::current_process;
 
 const FB_VADDR: usize = 0x10000000; // 显存的用户态虚拟内存地址 反正每个用户进程它的显存地址 都是0x10000000
 
 pub fn sys_framebuffer() -> isize {
-    let fb = GPU_DEVICE.get_framebuffer(); //显存物理地址
+    let gpu = GPU_DEVICE.clone();
+    let fb = gpu.get_framebuffer(); //显存物理地址
     let len = fb.len();
-
-    let fb_start_pa = PhysAddr::from(fb.as_ptr() as usize);
-    assert!(fb_start_pa.aligned());
-    let fb_start_ppn = fb_start_pa.floor(); // 物理页
-    let fb_start_vpn = VirtAddr::from(FB_VADDR).floor(); // 虚拟页
-    let pn_offset = fb_start_ppn.0 as isize - fb_start_vpn.0 as isize;
+    println!(
+        "[kernel] FrameBuffer: addr 0x{:X}, len {}",
+        fb.as_ptr() as usize,
+        len
+    );
+    let fb_ppn = PhysAddr::from(fb.as_ptr() as usize).floor();
+    let fb_end_ppn = PhysAddr::from(fb.as_ptr() as usize + len).ceil();
 
     let current_process = current_process();
     let mut inner = current_process.inner_exclusive_access();
-    inner.memory_set.push(
+    let mem_set = &mut inner.memory_set;
+    mem_set.push_noalloc(
         MapArea::new(
             (FB_VADDR as usize).into(),
             (FB_VADDR + len as usize).into(),
-            MapType::Linear(pn_offset),  //就是虚拟地址 加上某个固定值offset 就是物理地址
+            MapType::Noalloc,
             MapPermission::R | MapPermission::W | MapPermission::U, // User Mode + Read + Write
             SectionType::Device,
         ),
-        None,
+        PPNRange::new(fb_ppn, fb_end_ppn),
     );
     return FB_VADDR as isize;
 }

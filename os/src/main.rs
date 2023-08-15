@@ -46,6 +46,7 @@ pub mod task;
 mod timer;
 pub mod trap;
 
+use crate::drivers::GPU_DEVICE;
 use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;
 
@@ -78,6 +79,8 @@ pub fn rust_main() -> ! {
 
     mm::init();
     UART.init();
+    println!("KERN: init gpu");
+    let _gpu = GPU_DEVICE.as_ref(); // GPU_DEVICE 是lazy_static 必须调用它的任何一个方法, 促使其实例化, 并调用构造函数
     mm::remap_test();
     trap::init();
     trap::enable_timer_interrupt();

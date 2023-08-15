@@ -1,5 +1,3 @@
-//! Constants used in rCore for qemu
-
 pub const CLOCK_FREQ: usize = 12500000;
 
 pub const MMIO: &[(usize, usize)] = &[
@@ -47,7 +45,7 @@ pub fn irq_handler() {
         // 5 => KEYBOARD_DEVICE.handle_irq(),
         // 6 => MOUSE_DEVICE.handle_irq(),
         8 => {
-            log!( "\x1b[35m[qemu: irq_handler] trap_from_kernel call block device handle_irq [{}]  \x1b[0m", intr_src_id);
+            // log!( "\x1b[35m[qemu: irq_handler] trap_from_kernel call block device handle_irq [{}]  \x1b[0m", intr_src_id);
             BLOCK_DEVICE.handle_irq()
         }
         10 => UART.handle_irq(),

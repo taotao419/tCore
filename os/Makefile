@@ -40,7 +40,7 @@ build: env $(KERNEL_BIN) fs-img
 
 env:
 	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
-	# cargo install cargo-binutils
+	cargo install cargo-binutils
 	rustup component add rust-src
 	rustup component add llvm-tools-preview
 
@@ -68,39 +68,38 @@ disasm: kernel
 
 disasm-vim: kernel
 	@$(OBJDUMP) $(DISASM) $(KERNEL_ELF) > $(DISASM_TMP)
-	@vim $(DISASM_TMP)
+	@nvim $(DISASM_TMP)
 	@rm $(DISASM_TMP)
 
 run: run-inner
 
-QEMU_ARGS := -machine virt \
-			 -nographic \
-			 -bios $(BOOTLOADER) \
-			 -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
-			 -drive file=$(FS_IMG),if=none,format=raw,id=x0 \
-			 -device virtio-blk-device,drive=x0 \
-			 -device virtio-gpu-device \
-			 -device virtio-keyboard-device \
-			 -device virtio-mouse-device \
-			 -device virtio-net-device,netdev=net0 \
-			 -netdev user,id=net0,hostfwd=udp::6200-:2000,hostfwd=tcp::6201-:80
+run-inner: build
+	@qemu-system-riscv64 \
+		-M 128m \
+		-machine virt \
+		-bios $(BOOTLOADER) \
+		$(GUI_OPTION) \
+		-device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
+		-drive file=$(FS_IMG),if=none,format=raw,id=x0 \
+        -device virtio-blk-device,drive=x0 \
+		-device virtio-gpu-device  \
+		-device virtio-keyboard-device  \
+		-device virtio-mouse-device \
+		-serial stdio
 
 fdt:
 	@qemu-system-riscv64 -M 128m -machine virt,dumpdtb=virt.out
 	fdtdump virt.out
 
-run-inner: build
-	@qemu-system-riscv64 $(QEMU_ARGS)
-
 debug: build
 	@tmux new-session -d \
-		"qemu-system-riscv64 $(QEMU_ARGS) -s -S" && \
+		"qemu-system-riscv64 -machine virt -nographic -bios $(BOOTLOADER) -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) -s -S" && \
 		tmux split-window -h "riscv64-unknown-elf-gdb -ex 'file $(KERNEL_ELF)' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'" && \
 		tmux -2 attach-session -d
 
 
 gdbserver: build
-	@qemu-system-riscv64 $(QEMU_ARGS) -s -S
+	@qemu-system-riscv64 -machine virt -nographic -bios $(BOOTLOADER) -device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) -s -S
 
 gdbclient:
 	@riscv64-unknown-elf-gdb -ex 'file $(KERNEL_ELF)' -ex 'set arch riscv:rv64' -ex 'target remote localhost:1234'

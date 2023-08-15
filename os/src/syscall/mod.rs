@@ -61,6 +61,8 @@ use thread::*;
 
 use crate::task::SignalAction;
 
+use self::gui::{sys_framebuffer, sys_framebuffer_flush};
+
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
     match syscall_id {
@@ -104,6 +106,8 @@ pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
         SYSCALL_CONDVAR_WAIT => sys_condvar_wait(args[0], args[1]),
         SYSCALL_CONDVAR_SIGNAL_ALL => sys_condvar_signal_all(args[0]),
         SYSCALL_EVENTFD => sys_eventfd(args[0] as u32, args[1] as u32),
+        SYSCALL_FRAMEBUFFER => sys_framebuffer(),
+        SYSCALL_FRAMEBUFFER_FLUSH => sys_framebuffer_flush(),
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     }
 }

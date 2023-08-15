@@ -1,6 +1,6 @@
 use crate::mm::{
-    frame_alloc_more, frame_dealloc, kernel_token, FrameTracker, PageTable, PhysAddr, PhysPageNum,
-    StepByOne, VirtAddr,
+    frame_alloc, frame_dealloc, kernel_token, FrameTracker, PageTable, PhysAddr,
+    PhysPageNum, StepByOne, VirtAddr,
 };
 use crate::sync::UPIntrFreeCell;
 use alloc::vec::Vec;
@@ -18,11 +18,15 @@ pub struct VirtioHal;
 
 impl Hal for VirtioHal {
     fn dma_alloc(pages: usize) -> usize {
-        let trackers = frame_alloc_more(pages);
-        let ppn_base = trackers.as_ref().unwrap().last().unwrap().ppn;
-        QUEUE_FRAMES
-            .exclusive_access()
-            .append(&mut trackers.unwrap());
+        let mut ppn_base = PhysPageNum(0);
+        for i in 0..pages {
+            let frame = frame_alloc().unwrap();
+            if i == 0 {
+                ppn_base = frame.ppn;
+            }
+            assert_eq!(frame.ppn.0, ppn_base.0 + i);
+            QUEUE_FRAMES.exclusive_access().push(frame);
+        }
         let pa: PhysAddr = ppn_base.into(); //物理页帧 到 物理地址的转换
         return pa.0;
     }

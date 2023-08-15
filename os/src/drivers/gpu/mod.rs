@@ -15,7 +15,7 @@ pub trait GpuDevice: Send + Sync + Any {
 }
 
 lazy_static::lazy_static!(
-    pub static ref GPU_DEVICE: Arc<dyn GpuDevice>=Arc::new(VirtIOGpuWrapper::new());
+    pub static ref GPU_DEVICE: Arc<dyn GpuDevice> = Arc::new(VirtIOGpuWrapper::new());
 );
 
 pub struct VirtIOGpuWrapper {
@@ -59,8 +59,8 @@ impl VirtIOGpuWrapper {
 }
 
 impl GpuDevice for VirtIOGpuWrapper {
-    fn update_cursor(&self) {
-        todo!()
+    fn flush(&self) {
+        self.gpu.exclusive_access().flush().unwrap();
     }
 
     fn get_framebuffer(&self) -> &mut [u8] {
@@ -70,7 +70,7 @@ impl GpuDevice for VirtIOGpuWrapper {
         }
     }
 
-    fn flush(&self) {
-        self.gpu.exclusive_access().flush().unwrap();
+    fn update_cursor(&self) {
+        todo!()
     }
 }

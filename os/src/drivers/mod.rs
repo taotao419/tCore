@@ -7,3 +7,4 @@ pub mod gpu;
 pub use block::BLOCK_DEVICE;
 pub use bus::*;
 pub use chardev::UART;
+pub use gpu::*;

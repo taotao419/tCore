@@ -12,9 +12,9 @@ mod heap_allocator;
 mod memory_set;
 mod page_table;
 
-use address:: VPNRange;
+pub use address::{ VPNRange,PPNRange};
 pub use address::{PhysAddr, PhysPageNum,StepByOne, VirtAddr, VirtPageNum};
-pub use frame_allocator::{frame_alloc,frame_alloc_more, frame_dealloc,FrameTracker};
+pub use frame_allocator::{frame_alloc, frame_dealloc,FrameTracker};
 pub use memory_set::remap_test;
 pub use memory_set::{kernel_token,MapArea,MapPermission,MapType,SectionType, MemorySet, KERNEL_SPACE};
 use page_table::PTEFlags;

@@ -3,7 +3,7 @@
 use super::{frame_alloc, FrameTracker};
 use super::{PTEFlags, PageTable, PageTableEntry};
 use super::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
-use super::{StepByOne, VPNRange};
+use super::{StepByOne, VPNRange,PPNRange};
 use crate::config::{MEMORY_END, MMIO, PAGE_SIZE, TRAMPOLINE, USER_STACK_SIZE};
 use crate::sync::UPSafeCell;
 use alloc::collections::BTreeMap;
@@ -92,6 +92,10 @@ impl MemorySet {
         if let Some(data) = data {
             map_area.copy_data(&mut self.page_table, data);
         }
+        self.areas.push(map_area);
+    }
+    pub fn push_noalloc(&mut self, mut map_area: MapArea, ppn_range: PPNRange) {
+        map_area.map_noalloc(&mut self.page_table, ppn_range);
         self.areas.push(map_area);
     }
     /// Mention that trampoline is not collected by areas.
@@ -340,10 +344,8 @@ impl MapArea {
                 ppn = frame.ppn;
                 self.data_frames.insert(vpn, frame);
             }
-            MapType::Linear(pn_offset) => {
-                //check for sv39
-                assert!(vpn.0 < (1usize << 27));
-                ppn = PhysPageNum((vpn.0 as isize + pn_offset) as usize);
+            MapType::Noalloc => {
+                panic!("Noalloc should not be mapped");
             }
         }
         let pte_flags = PTEFlags::from_bits(self.map_perm.bits).unwrap();
@@ -361,6 +363,14 @@ impl MapArea {
             self.map_one(page_table, vpn);
         }
     }
+    pub fn map_noalloc(&mut self, page_table: &mut PageTable, ppn_range: PPNRange) {
+        for (vpn, ppn) in core::iter::zip(self.vpn_range, ppn_range) {
+            self.data_frames.insert(vpn, FrameTracker::new_noalloc(ppn));
+            let pte_flags = PTEFlags::from_bits(self.map_perm.bits).unwrap();
+            page_table.map(vpn, ppn, pte_flags);
+        }
+    }
+
     #[allow(unused)]
     pub fn unmap(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range {
@@ -396,8 +406,7 @@ impl MapArea {
 pub enum MapType {
     Identical,
     Framed,
-    /// offset of page num
-    Linear(isize),
+    Noalloc,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
