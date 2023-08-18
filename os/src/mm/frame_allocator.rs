@@ -11,7 +11,7 @@ use lazy_static::*;
 /// manage a frame which has the same lifecycle as the tracker
 pub struct FrameTracker {
     pub ppn: PhysPageNum,
-    pub nodrop: bool,
+    pub nodrop: bool, //此物理页 能否回收 (给显卡用的内存[显存] 不可回收)
 }
 
 impl FrameTracker {
