@@ -41,6 +41,8 @@ const SYSCALL_CONDVAR_SIGNAL_ALL: usize = 1033;
 
 const SYSCALL_FRAMEBUFFER: usize = 2000;
 const SYSCALL_FRAMEBUFFER_FLUSH: usize = 2001;
+const SYSCALL_EVENT_GET: usize = 3000;
+const SYSCALL_KEY_PRESSED: usize = 3001;
 
 // _start: addi  a0, x0, 1      # 1 = StdOut
 //         la    a1, helloworld # load address of helloworld
@@ -227,4 +229,12 @@ pub fn sys_framebuffer() -> isize {
 
 pub fn sys_framebuffer_flush() -> isize {
     syscall(SYSCALL_FRAMEBUFFER_FLUSH, [0, 0, 0])
+}
+
+pub fn sys_event_get() -> isize {
+    syscall(SYSCALL_EVENT_GET, [0, 0, 0])
+}
+
+pub fn sys_key_pressed() -> isize {
+    syscall(SYSCALL_KEY_PRESSED, [0, 0, 0])
 }

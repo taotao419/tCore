@@ -45,14 +45,17 @@ const SYSCALL_CONDVAR_CREATE: usize = 1030;
 const SYSCALL_CONDVAR_SIGNAL: usize = 1031;
 const SYSCALL_CONDVAR_WAIT: usize = 1032;
 const SYSCALL_CONDVAR_SIGNAL_ALL: usize = 1033;
-const SYSCALL_FRAMEBUFFER:usize=2000;
-const SYSCALL_FRAMEBUFFER_FLUSH:usize=2001;
+const SYSCALL_FRAMEBUFFER: usize = 2000;
+const SYSCALL_FRAMEBUFFER_FLUSH: usize = 2001;
+const SYSCALL_EVENT_GET: usize = 3000;
+const SYSCALL_KEY_PRESSED: usize = 3001;
 
 mod fs;
+mod gui;
+mod input;
 mod process;
 mod sync;
 mod thread;
-mod gui;
 
 use fs::*;
 use process::*;
@@ -62,6 +65,7 @@ use thread::*;
 use crate::task::SignalAction;
 
 use self::gui::{sys_framebuffer, sys_framebuffer_flush};
+use self::input::{sys_event_get, sys_key_pressed};
 
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
@@ -98,7 +102,7 @@ pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
         SYSCALL_MUTEX_CREATE => sys_mutex_create(args[0] == 1),
         SYSCALL_MUTEX_LOCK => sys_mutex_lock(args[0]),
         SYSCALL_MUTEX_UNLOCK => sys_mutex_unlock(args[0]),
-        SYSCALL_SEMAPHORE_CREATE => sys_semaphore_create(args[0]), 
+        SYSCALL_SEMAPHORE_CREATE => sys_semaphore_create(args[0]),
         SYSCALL_SEMAPHORE_UP => sys_semaphore_up(args[0]),
         SYSCALL_SEMAPHORE_DOWN => sys_semaphore_down(args[0]),
         SYSCALL_CONDVAR_CREATE => sys_condvar_create(),
@@ -108,6 +112,8 @@ pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
         SYSCALL_EVENTFD => sys_eventfd(args[0] as u32, args[1] as u32),
         SYSCALL_FRAMEBUFFER => sys_framebuffer(),
         SYSCALL_FRAMEBUFFER_FLUSH => sys_framebuffer_flush(),
+        SYSCALL_EVENT_GET => sys_event_get(),
+        SYSCALL_KEY_PRESSED => sys_key_pressed(),
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     }
 }

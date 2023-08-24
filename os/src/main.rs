@@ -49,6 +49,8 @@ pub mod trap;
 use crate::drivers::GPU_DEVICE;
 use crate::drivers::chardev::CharDevice;
 use crate::drivers::chardev::UART;
+use crate::drivers::input::KEYBOARD_DEVICE;
+use crate::drivers::input::MOUSE_DEVICE;
 
 core::arch::global_asm!(include_str!("entry.asm"));
 
@@ -81,6 +83,10 @@ pub fn rust_main() -> ! {
     UART.init();
     println!("KERN: init gpu");
     let _gpu = GPU_DEVICE.as_ref(); // GPU_DEVICE 是lazy_static 必须调用它的任何一个方法, 促使其实例化, 并调用构造函数
+    println!("KERN: init keyboard");
+    let _keyboard = KEYBOARD_DEVICE.as_ref();
+    println!("KERN: init mouse");
+    let _mouse = MOUSE_DEVICE.as_ref();
     mm::remap_test();
     trap::init();
     trap::enable_timer_interrupt();

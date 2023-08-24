@@ -3,9 +3,11 @@ use embedded_graphics::{
     prelude::{DrawTarget, OriginDimensions, RgbColor, Size},
     Pixel,
 };
+use virtio_input_decoder::Decoder;
+pub use virtio_input_decoder::{DecodeType, Key, KeyType, Mouse};
 
-use crate::{syscall::{sys_framebuffer, sys_framebuffer_flush}, console::log};
-
+use crate::console::log;
+use crate::syscall::{sys_event_get, sys_framebuffer, sys_framebuffer_flush, sys_key_pressed};
 pub const VIRTGPU_XRES: u32 = 1280;
 pub const VIRTGPU_YRES: u32 = 800;
 pub const VIRTGPU_LEN: usize = (VIRTGPU_XRES * VIRTGPU_YRES * 4) as usize;
@@ -28,8 +30,7 @@ impl Display {
         let fb_ptr = framebuffer() as *mut u8;
         println!(
             "Display Info in user mode program! 0x{:X} , len {}",
-            fb_ptr as usize,
-            VIRTGPU_LEN
+            fb_ptr as usize, VIRTGPU_LEN
         );
         let fb = unsafe { core::slice::from_raw_parts_mut(fb_ptr, VIRTGPU_LEN) };
         return Self { size, fb };
@@ -72,5 +73,55 @@ impl DrawTarget for Display {
         });
         framebuffer_flush();
         Ok(())
+    }
+}
+
+pub fn event_get() -> Option<InputEvent> {
+    let raw_value = sys_event_get();
+    if raw_value == 0 {
+        None
+    } else {
+        Some((raw_value as u64).into())
+    }
+}
+
+pub fn key_pressed() -> bool {
+    if sys_key_pressed() == 1 {
+        true
+    } else {
+        false
+    }
+}
+
+#[repr(C)]
+pub struct InputEvent {
+    pub event_type: u16,
+    pub code: u16,
+    pub value: u32,
+}
+
+impl From<u64> for InputEvent {
+    fn from(mut v: u64) -> Self {
+        let value = v as u32;
+        v >>= 32;
+        let code = v as u16;
+        v >>= 16;
+        let event_type = v as u16;
+        Self {
+            event_type,
+            code,
+            value,
+        }
+    }
+}
+
+impl InputEvent {
+    pub fn decode(&self) -> Option<DecodeType> {
+        Decoder::decode(
+            self.event_type as usize,
+            self.code as usize,
+            self.value as usize,
+        )
+        .ok()
     }
 }

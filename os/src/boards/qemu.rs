@@ -17,7 +17,7 @@ pub const VIRT_UART: usize = 0x1000_0000;
 #[macro_use]
 use crate::drivers::chardev::{CharDevice, UART};
 use crate::drivers::plic::{IntrTargetPriority, PLIC};
-use crate::drivers::BLOCK_DEVICE;
+use crate::drivers::{BLOCK_DEVICE, KEYBOARD_DEVICE, MOUSE_DEVICE};
 use crate::log;
 
 pub fn device_init() {
@@ -42,8 +42,8 @@ pub fn irq_handler() {
     let mut plic = unsafe { PLIC::new(VIRT_PLIC) };
     let intr_src_id = plic.claim(0, IntrTargetPriority::Supervisor); //第0个CPU (反正我们单CPU) 操作系统的特权:Supervisor
     match intr_src_id {
-        // 5 => KEYBOARD_DEVICE.handle_irq(),
-        // 6 => MOUSE_DEVICE.handle_irq(),
+        5 => KEYBOARD_DEVICE.handle_irq(),
+        6 => MOUSE_DEVICE.handle_irq(),
         8 => {
             // log!( "\x1b[35m[qemu: irq_handler] trap_from_kernel call block device handle_irq [{}]  \x1b[0m", intr_src_id);
             BLOCK_DEVICE.handle_irq()
