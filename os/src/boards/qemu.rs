@@ -42,8 +42,14 @@ pub fn irq_handler() {
     let mut plic = unsafe { PLIC::new(VIRT_PLIC) };
     let intr_src_id = plic.claim(0, IntrTargetPriority::Supervisor); //第0个CPU (反正我们单CPU) 操作系统的特权:Supervisor
     match intr_src_id {
-        5 => KEYBOARD_DEVICE.handle_irq(),
-        6 => MOUSE_DEVICE.handle_irq(),
+        5 => {
+            log!( "\x1b[35m[irq_handler] 设备 鼠标 发出中断请求  \x1b[0m");
+            MOUSE_DEVICE.handle_irq()
+        }
+        6 => {
+            log!( "\x1b[35m[irq_handler] 设备 键盘 发出中断请求  \x1b[0m");
+            KEYBOARD_DEVICE.handle_irq()
+        }
         8 => {
             // log!( "\x1b[35m[qemu: irq_handler] trap_from_kernel call block device handle_irq [{}]  \x1b[0m", intr_src_id);
             BLOCK_DEVICE.handle_irq()

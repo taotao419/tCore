@@ -35,10 +35,10 @@ pub trait InputDevice: Send + Sync + Any {
 }
 
 lazy_static::lazy_static!(
-    // 固定位置 键盘 0x10005000
-    // 固定位置 鼠标 0x10006000 
-    pub static ref KEYBOARD_DEVICE: Arc<dyn InputDevice> = Arc::new(VirtIOInputWrapper::new(VIRTIO5));
-    pub static ref MOUSE_DEVICE: Arc<dyn InputDevice> = Arc::new(VirtIOInputWrapper::new(VIRTIO6));
+    // 固定位置 鼠标 0x10005000
+    // 固定位置 键盘 0x10006000 
+    pub static ref MOUSE_DEVICE : Arc<dyn InputDevice> = Arc::new(VirtIOInputWrapper::new(VIRTIO5));
+    pub static ref KEYBOARD_DEVICE : Arc<dyn InputDevice> = Arc::new(VirtIOInputWrapper::new(VIRTIO6));
 );
 
 impl VirtIOInputWrapper {
@@ -69,6 +69,7 @@ impl InputDevice for VirtIOInputWrapper {
                 return event;
             } else {
                 // 如果没有IO事件发生 则休眠相应线程/ 进程
+                log!( "\x1b[35m[INPUT DRIVE: read_event] sleep now... \x1b[0m");
                 let task_cx_ptr = self.condvar.wait_no_sched();
                 drop(inner); //解锁
                 schedule(task_cx_ptr);
@@ -88,10 +89,12 @@ impl InputDevice for VirtIOInputWrapper {
                     | (event.1.code as u64) << 32
                     | (event.1.value) as u64;
                 inner.events.push_back(result);
+                log!( "\x1b[35m[INPUT DRIVE: handle_irq] event [type : {} code : {} value : {}]  \x1b[0m", event.1.event_type,event.1.code,event.1.value);
             }
         });
         if count > 0 {
             // 如果有未处理IO事件, 唤醒相应线程/ 进程
+            log!( "\x1b[35m[INPUT DRIVE: handle_irq] wake up now... \x1b[0m");
             self.condvar.signal();
         }
     }
